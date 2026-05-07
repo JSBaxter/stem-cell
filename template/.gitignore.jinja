@@ -7,11 +7,15 @@
 
 # Build / cache
 .venv/
-{% if language == "python" %}
+
+# Python build artifacts — always present because the bundled queue
+# under dev-tools/queue/ is Python regardless of the cell's primary
+# language. .pytest_cache is included here for the same reason.
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+{% if language == "python" %}
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
