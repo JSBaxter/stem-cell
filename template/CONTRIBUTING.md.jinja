@@ -283,14 +283,24 @@ type, ticked off>
 
 ### Review / merge
 
+{% if include_bot_identity %}
+- The bot identity (`dev-tools/agent-bot/as-bot.sh`) authors the
+  agent's commits and PRs so the operator account remains a real
+  reviewer. Operator approves the bot's PRs as themselves; the bot
+  cannot self-approve. Branch protection (`require approving review`)
+  enforces this.
+- After opening a PR, the agent **exits**. Specifically: call
+  `block_task` on the current queue task with
+  `reason="awaiting merge"`, `close_session` with
+  `outcome="awaiting_review"`, and end the session. Do NOT start the
+  next task in the same session — operator merge (or a listener
+  service spawning a fresh session on merge) is the trigger for the
+  next session.
+{% else %}
 - Self-approval is acceptable while the cell is single-contributor,
   but the PR workflow still applies — it forces the
   diff-and-description discipline and gives every change a durable
   URL.
-{% if include_bot_identity %}
-- The bot identity (`dev-tools/agent-bot/as-bot.sh`) authors the
-  agent's commits and PRs so the operator account remains a real
-  reviewer.
 {% endif %}
 - Squash-merge is the default
 - Delete the branch after merge

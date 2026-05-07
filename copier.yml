@@ -126,8 +126,10 @@ include_bot_identity:
   help: |
     Include dev-tools/agent-bot/ — wrappers (mint-token.sh, as-bot.sh) for
     a separate GitHub App bot identity, so the operator can be a real
-    reviewer on the agent's PRs. Requires creating the App externally.
-  default: false
+    reviewer on the agent's PRs. Requires creating the App externally
+    (see dev-tools/agent-bot/README.md). Default true; turn off if
+    you're sure you'll never use a bot identity for this cell.
+  default: true
 
 github_remote:
   type: bool

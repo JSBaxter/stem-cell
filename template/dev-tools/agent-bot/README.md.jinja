@@ -6,16 +6,40 @@ reviewer (GitHub disallows self-review on PRs and Environment
 gates).
 
 This directory holds the scripts. The credentials they read live in
-`.agent-bot/` at the repo root (gitignored, `0700`):
+`.agent-bot/` at the repo root by default (gitignored, `0700`):
 
 - `private-key.pem` (`0600`) — the App's RSA private key, used to
   sign JWTs for installation-token minting.
 - `app.env` (`0600`) — `app_id`, `installation_id`, `bot_user_id`,
   `bot_email`, etc. Sourced by both scripts.
 
-To re-point the scripts at credentials in a different location (e.g.
-mounted into a container at deploy time), set
+To re-point the scripts at credentials in a different location, set
 `AGENT_BOT_CRED_DIR=/path/to/dir` in the environment.
+
+### Colony-shared bot pattern (recommended)
+
+If you're using **one GitHub App across all cells in a colony** (the
+common case for solo dev or small teams), put the credentials in a
+single user-level location and have every cell read from there:
+
+```bash
+# One-time, on the operator workstation:
+mkdir -p ~/.config/colony-bot && chmod 700 ~/.config/colony-bot
+mv ~/Downloads/<app>.<date>.private-key.pem \
+   ~/.config/colony-bot/private-key.pem
+chmod 600 ~/.config/colony-bot/private-key.pem
+# Write app.env with app_id, installation_id, bot_user_id, etc.
+chmod 600 ~/.config/colony-bot/app.env
+```
+
+Then in each cell's shell environment (or via `direnv`):
+
+```bash
+export AGENT_BOT_CRED_DIR=~/.config/colony-bot/
+```
+
+Per-cell `.agent-bot/` directories aren't needed in this mode — the
+scripts find everything in the shared location.
 
 ## Scripts
 

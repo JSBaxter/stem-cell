@@ -24,6 +24,15 @@ If anything you read elsewhere conflicts with `CONTRIBUTING.md`,
       task claimed or created, session opened, and session closed
       before handoff or completion
 - [ ] No secrets, state, or large binaries staged
+{% if include_bot_identity %}
+- [ ] Commits / pushes / PR operations made via
+      `dev-tools/agent-bot/as-bot.sh` so they're attributed to the bot
+      (operator commits made without the wrapper keep the operator
+      identity — that's intentional)
+- [ ] After opening the PR: `block_task` the current task,
+      `close_session` with `outcome=awaiting_review`, and **exit the
+      session**. Do not start the next task — see CONTRIBUTING.md
+{% endif %}
 
 ## Reproduction
 
