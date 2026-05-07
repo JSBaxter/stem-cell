@@ -1,0 +1,132 @@
+# Ceremonies
+
+Recurring process activities that keep this cell healthy without
+running ad hoc. Each ceremony has a fixed cadence anchored to
+{{ "merged PR" if github_remote else "merge-to-main" }}
+numbers via a modulo rule.
+
+## Trigger rule
+
+After {{ "PR" if github_remote else "merge" }} `k` lands on `main`,
+ceremony `i` fires iff `k mod n_i == 0`.
+
+Multiple ceremonies can fire on the same {{ "PR" if github_remote else "merge" }}.
+Those are intentional "milestone" passes.
+
+## Catalogue
+
+| `i` | Ceremony                                  | `n_i` |
+|-----|-------------------------------------------|-------|
+| 1   | Backlog grooming / reprioritisation       | 5     |
+| 2   | Project health check (STATE.md vs reality)| 10    |
+| 3   | Structural / architectural review         | 20    |
+| 4   | Workflow retro                            | 15    |
+
+Periods are starter values. Revisit during a retro (ceremony 4) if
+they feel wrong for this cell's cadence.
+
+## Ceremony 1 — Backlog grooming / reprioritisation
+
+**Purpose:** Stop the queue from rotting. Close stale "done in
+reality" tasks, kill tasks that no longer make sense, rescore
+remaining tasks, link new dependencies, scope new ideas that have
+become concrete.
+
+**Inputs:**
+- Queue `list_tasks` output for open work
+- Recent {{ "merged PRs" if github_remote else "merges" }} since the last grooming
+- `STATE.md` to check what shipped
+
+**Output:**
+- Closures, rescores, and dependency links applied to the queue
+- Brief summary in the triggering session notes or in a fresh
+  grooming task's notes
+
+**Exit criteria:** every open task has a priority that makes sense
+relative to its peers, and no task is older than three months
+without either progress or an explicit reason to keep it parked.
+
+## Ceremony 2 — Project health check (STATE.md vs reality)
+
+**Purpose:** Verify the cell's snapshot of operational truth still
+matches reality. Catch drift before it bites.
+
+**Inputs:**
+- `STATE.md`
+- Whatever the cell's "is it working" smoke check is — a build, a
+  test run, a reachability check against the cell's external
+  surface
+- Any quality CI most-recent run
+
+**Output:**
+- `STATE.md` updates for anything that drifted
+- One follow-up task per divergence that can't be fixed inline
+
+**Exit criteria:** every claim in `STATE.md` that names a live
+artifact is verified, and any divergence has a tracked task.
+
+## Ceremony 3 — Structural / architectural review
+
+**Purpose:** Step back and audit the cell as a whole — convention
+drift, layering violations, security smells, doc rot, secret
+hygiene, supply-chain assumptions.
+
+**Inputs:**
+- The whole cell
+- `MANIFESTO.md` and `CONTRIBUTING.md`
+- Recent ceremony 4 outputs
+
+**Output:**
+- A new audit task in the queue with one follow-up task per
+  finding, scored
+- Deltas to `CONTRIBUTING.md` or `MANIFESTO.md` if conventions or
+  principles need tightening
+- If a finding is actually a template-level concern, raise it
+  upstream against `stem-cell`
+
+**Exit criteria:** every finding either has a tracked follow-up or
+has been explicitly accepted (with reason recorded).
+
+**Dedupe note:** Before filing findings, list existing tasks/ideas
+in the queue and dedupe — older entries usually have richer
+context.
+
+## Ceremony 4 — Workflow retro
+
+**Purpose:** Look at the *workflow* itself, not the code. What
+slowed us down? What got repeated unnecessarily? Which patterns
+worked and should be codified?
+
+**Inputs:**
+- Queue feature requests since the last retro
+  (`list_feature_requests`)
+- Session notes flagged with `decision_notes` or `theory_notes`
+- Recent friction the operator noticed but didn't file
+
+**Output:**
+- Tweaks to `CONTRIBUTING.md`, `CLAUDE.md`, `WORKFLOW.md`, or the
+  cell's queue config to harden patterns or kill anti-patterns
+- If the friction is template-level, raise it upstream against
+  `stem-cell`
+
+**Exit criteria:** every recurring pain point identified is either
+captured as a queued improvement or has a workflow-doc change in
+this PR.
+
+## Trigger mechanics
+
+Today this is honour-system. Whichever agent picks up post-merge
+work is expected to:
+
+1. Note the {{ "merged PR" if github_remote else "merge" }} number `k`.
+2. For each ceremony `i`, check `k mod n_i`.
+3. For each match, fire the ceremony before starting unrelated work.
+
+A merged {{ "PR" if github_remote else "branch" }} can be skipped
+only if it is itself a ceremony PR (no recursion). Closing a
+ceremony in its own PR is fine; firing the next cadence on top of
+it is not.
+
+Long-term, this can be wired into CD: the deploy job opens queue
+tasks for whichever ceremonies match the merged number, so
+triggering is mechanical rather than honour-system.

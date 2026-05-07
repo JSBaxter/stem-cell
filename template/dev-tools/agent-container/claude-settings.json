@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  },
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "$comment": "In-container settings only. The container is the safety boundary — the agent has no host filesystem reach beyond /workspace/<cell> and /home/agent. bypassPermissions disables permission prompts for routine work; the operator reviews the resulting PR rather than each tool call. MCP server config is NOT here — Claude Code reads mcpServers from .mcp.json at the repo root (canonical project-scope location), not from settings.json."
+}

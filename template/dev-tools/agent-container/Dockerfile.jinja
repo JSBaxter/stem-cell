@@ -1,0 +1,81 @@
+# Repo-only Claude Code container for the {{ project_name }} cell agent.
+#
+# Bounded blast radius: bind-mount the cell repo + ~/.claude state
+# read-write, nothing else. Container has no SSH keys, no operator
+# account access, no network reach into anything the cell didn't sign
+# up for. In-container Claude Code runs with bypassPermissions so
+# routine work doesn't prompt — the container itself is the safety
+# boundary, not the permission prompts.
+
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# Base tools the bot identity scripts + agent workflow need.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        gnupg \
+        jq \
+        less \
+        openssl \
+        ripgrep \
+        sudo \
+ && rm -rf /var/lib/apt/lists/*
+
+# Node.js 20 LTS for the Claude Code CLI.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && rm -rf /var/lib/apt/lists/*
+
+# GitHub CLI from upstream apt repo (Debian's package is much older).
+RUN install -m 0755 -d /etc/apt/keyrings \
+ && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+ && chmod a+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends gh \
+ && rm -rf /var/lib/apt/lists/*
+
+# uv for Python sub-projects (the bundled queue, plus anything the
+# cell adds later).
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
+# Anthropic Claude Code CLI.
+RUN npm install -g @anthropic-ai/claude-code
+
+# Non-root user. Sudo allowed without password — inside the container,
+# the agent has root-equivalent latitude; the host is what the
+# container is isolating from.
+RUN useradd --create-home --shell /bin/bash --uid 1000 agent \
+ && echo 'agent ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/agent \
+ && chmod 0440 /etc/sudoers.d/agent
+
+# Baseline settings.json baked at /opt — the entrypoint refreshes
+# ~/.claude/settings.json from this on first container start, so the
+# named volume holding OAuth state doesn't pin a stale settings.json
+# across image updates.
+COPY claude-settings.json /opt/claude-settings.json
+COPY entrypoint.sh /usr/local/bin/agent-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/agent-entrypoint.sh
+
+USER agent
+WORKDIR /workspace/{{ project_name }}
+
+# Pre-create the .venv subdirs and ~/.claude as `agent` so the
+# named-volume overlays in run.sh inherit the right ownership on first
+# creation. Without these, Docker initialises the volumes root-owned
+# and the agent inside can't write to them.
+RUN mkdir -p \
+        dev-tools/queue/.venv \
+        /home/agent/.claude
+
+ENTRYPOINT ["/usr/local/bin/agent-entrypoint.sh"]
+
+CMD ["bash", "-l"]

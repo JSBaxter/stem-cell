@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "mcpServers": {
+    "queue": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "dev-tools/queue",
+        "python",
+        "server.py",
+        "--db",
+        "./queue.db",
+        "--transport",
+        "stdio"
+      ]
+    }
+  }
+}

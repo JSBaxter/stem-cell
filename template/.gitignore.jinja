@@ -1,0 +1,37 @@
+# Cell .gitignore — managed by stem-cell, edit freely.
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+
+# Build / cache
+.venv/
+{% if language == "python" %}
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+{% endif %}
+
+# Queue runtime state — code is committed; the live DB is not.
+dev-tools/queue/queue.db
+dev-tools/queue/queue.db-*
+
+{% if include_bot_identity %}
+# Bot identity credentials
+.agent-bot/
+{% endif %}
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Copier answers ARE committed (lineage / update support).
+# Do not add .copier-answers.yml here.

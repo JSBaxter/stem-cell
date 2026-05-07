@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "queue": {
+      "command": "<absolute-path-to-cell>/dev-tools/queue/.venv/bin/python",
+      "args": [
+        "<absolute-path-to-cell>/dev-tools/queue/server.py",
+        "--db",
+        "<absolute-path-to-cell>/dev-tools/queue/queue.db",
+        "--transport",
+        "stdio"
+      ]
+    }
+  }
+}

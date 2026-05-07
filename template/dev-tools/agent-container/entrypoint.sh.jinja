@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Container entrypoint.
+#
+# Seed ~/.claude/settings.json from the baked baseline at
+# /opt/claude-settings.json IF AND ONLY IF the volume is fresh.
+# Subsequent starts leave the user's settings.json alone — Claude
+# Code stores first-run-completed state, theme choice, and other
+# preferences inline, so unconditionally overwriting on every start
+# would make claude treat every run as a fresh install: theme prompt,
+# OAuth prompt, the lot.
+#
+# Trade-off: image updates to claude-settings.json don't propagate
+# automatically to existing volumes. To pick them up:
+#   docker volume rm {{ project_name }}-agent-home && run.sh claude
+# (Loses OAuth state; sign in again. Rare event.)
+set -euo pipefail
+
+mkdir -p "$HOME/.claude"
+if [[ ! -f "$HOME/.claude/settings.json" ]]; then
+    cp /opt/claude-settings.json "$HOME/.claude/settings.json"
+    chmod 0644 "$HOME/.claude/settings.json"
+fi
+
+# CMD = bash -l when nothing was passed; mirror that default here so
+# `docker run ... <image>` (no command) lands on a login shell.
+if [[ $# -eq 0 ]]; then
+    set -- bash -l
+fi
+
+exec "$@"

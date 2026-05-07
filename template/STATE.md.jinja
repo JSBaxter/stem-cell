@@ -1,0 +1,97 @@
+# State — {{ project_name }}
+
+This file is **operational truth**. What this cell currently runs,
+exposes, depends on, and stores. Keep it accurate; update it in the
+same PR as any change that affects what's live.
+
+If a section is empty, leave the heading and write "Nothing yet."
+The structure stays even when the content doesn't.
+
+---
+
+## What this cell does today
+
+{{ project_purpose }}
+{% if project_description %}
+
+{{ project_description }}
+{% endif %}
+
+Nothing live yet — fill this in once the cell ships its first
+real artifact.
+
+---
+
+## What's running
+
+Nothing yet.
+
+Examples of what would belong here once the cell has output:
+
+- A service or daemon, with where it runs and the address it's
+  reachable at
+- A scheduled job, with the schedule and the system that runs it
+- A library, with its current released version and where it's
+  published
+- A CLI, with where it's installed and its current version
+
+---
+
+## Dependencies
+
+### Build / runtime
+
+{% if language == "python" -%}
+- Python {{ "" }} (managed via `uv`)
+- The bundled queue runtime under `dev-tools/queue/` brings its own
+  Python project
+{%- else -%}
+Nothing language-specific yet — this cell is currently
+language-agnostic.
+{%- endif %}
+
+### External
+
+Nothing yet.
+
+---
+
+## Where secrets live
+
+Secrets are **never** committed. Possible homes:
+
+- A password manager (1Password, Bitwarden, etc.) — operator
+  workstation only
+- An environment variable on the deployment target
+- A secret store the cell explicitly authenticates against
+
+When the cell starts using a secret, list it here with its source
+(not its value):
+
+```
+| Secret              | Source                                    |
+|---------------------|-------------------------------------------|
+| GITHUB_TOKEN        | Operator's gh CLI auth                    |
+| ...                 | ...                                       |
+```
+
+---
+
+## What's NOT under this cell's control
+
+- Anything outside this repo
+- Anything the operator runs on their own machine and hasn't
+  committed here
+
+---
+
+## Drift log
+
+When `STATE.md` doesn't match reality and the discrepancy can't be
+fixed inline, log it here with a date and a tracked task ID:
+
+```
+- 2026-MM-DD — <description> — task_xxxxxx
+```
+
+(Empty until something drifts.)

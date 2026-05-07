@@ -1,0 +1,10 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+  truthy:
+    check-keys: false   # GitHub Actions uses "on:" which yamllint flags
+  document-start: disable

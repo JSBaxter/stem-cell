@@ -1,0 +1,202 @@
+# Testing
+
+How to verify a change before merging it. This document lives
+alongside `CONTRIBUTING.md` and fills in the "Verification" section
+of the PR template.
+
+This cell is small; tests should **catch mistakes**, not demonstrate
+discipline. The target is: a person running through the checklist
+for their change type can merge with confidence.
+
+---
+
+## Principles
+
+### 1. Idempotency first
+
+The most useful test for converging systems is "applying the same
+change twice is a no-op the second time." If your config drifts
+every apply, the config is wrong.
+
+### 2. Tests clean up after themselves, including on failure
+
+A test that leaves state around is a test that stops being a test.
+Use `trap` in bash, `try/finally` / `defer` in code, separate
+names/ports/volumes for test fixtures.
+
+If a test can't clean up, say so explicitly in the verification
+steps so a human cleans up after.
+
+### 3. Scope tests to what **you** own
+
+Don't test that {{ "Python" if language == "python" else "the framework" }}
+parses your code, or that the OS reads your file — those are
+upstream concerns. Test your config of those tools, and the
+contract your system promises to its users.
+
+### 4. Test the contract, not the implementation
+
+The contract for a service is usually what callers see: an
+endpoint, a return value, a side effect. That's what matters.
+Pinning tests to the internal shape that produces it creates
+brittleness.
+
+### 5. Don't add tests that will rot
+
+A test that runs once and never again is worse than no test — it
+lulls the next reader into believing it's still meaningful. Either
+keep it running (automated or part of the routine PR checklist) or
+delete it.
+
+---
+
+## What to test, by change type
+
+{% if language == "python" %}
+### Python code
+
+**Required before committing:**
+
+1. `ruff format --check` — no formatting diff.
+2. `ruff check` — lint clean.
+3. `ty` (or `mypy`) — type-clean.
+4. `pytest` — tests pass.
+
+**Required before merging:**
+
+5. Tests cover the new behavior, not just exercise it.
+6. Failure modes are tested — not only the happy path.
+
+**Don't:**
+
+- Mock what you don't own. Use real fixtures + real I/O where you
+  can. Mocks of external libraries tend to lie about contracts.
+- Pin to internal call shape — assert on the public return /
+  side-effect.
+
+{% endif %}
+### Documentation / repo meta
+
+**Required before committing:**
+
+1. The doc renders correctly (preview before push).
+2. Internal links resolve (`./foo/README.md`, `#anchor`).
+3. No secrets or internal-only URLs that shouldn't be published.
+
+**Don't:**
+
+- Add tests for prose. Spell-check is enough.
+- Duplicate content across docs to be "safe" — pick one home, link
+  from the others.
+
+{% if github_remote %}
+### GitHub Actions / CI (`.github/workflows/`)
+
+**Required before committing:**
+
+1. `yamllint` on workflow YAML.
+2. `actionlint` for workflow static analysis.
+3. Think through failure modes: bad input, repeat runs, manual
+   triggers.
+
+**Required before merging:**
+
+4. Exercise the workflow on a throwaway input if at all possible.
+
+{% endif %}
+### Queue (`dev-tools/queue/`)
+
+**Required before committing:**
+
+1. `uv run --directory dev-tools/queue pytest` clean.
+2. If you touched the schema, the SQLite repository tests still
+   pass.
+3. If you touched the MCP tool surface (`server.py`), the e2e
+   tests still pass.
+
+The queue ships with its own test suite that covers the domain,
+the SQLite round-trip, the MCP dispatch, and stdio end-to-end.
+Treat it as part of the cell's contract.
+
+---
+
+## What NOT to test — anti-patterns to avoid
+
+- **Testing the language/framework itself.** {{ "Python's stdlib, pytest, ruff are mature." if language == "python" else "Whatever you're using is mature." }}
+- **Asserting counts of dynamically-generated things.** Circular:
+  you're testing the loop by counting its outputs.
+- **Screenshot tests of TUI output / log formats.** Changes every
+  minor version of the tool.
+- **"Does the code parse" as the only test.** Parsing isn't meaning.
+- **Sleep-based waits without a fallback.** Poll for a condition
+  with a timeout instead.
+- **Tests that depend on a live external service** — third-party
+  APIs, time servers, rate-limited endpoints. Pin to local or mark
+  as online-only.
+
+---
+
+{% if language == "python" or github_remote %}
+## Automated checks
+{% if language == "python" %}
+
+`.pre-commit-config.yaml` runs the core checks before each commit.
+Install with `uvx pre-commit install`.
+{% endif %}
+{% if github_remote and language == "python" %}
+
+`.github/workflows/quality.yml` runs the same checks on push and PR.
+{% endif %}
+
+These checks are **helpers**, not a substitute for the per-change
+verification checklists below.
+
+---
+
+{% endif %}
+## PR verification — checklist by change type
+
+Use the block that matches your PR. Combine if the PR spans layers.
+
+{% if language == "python" %}
+### Python code
+
+- [ ] `ruff format --check` clean
+- [ ] `ruff check` clean
+- [ ] Type checker (`ty` or `mypy`) clean
+- [ ] `pytest` passes locally
+- [ ] New behavior covered by tests, not just exercised
+- [ ] Failure modes tested (not only the happy path)
+- [ ] `STATE.md` updated if the change is operational
+{% endif %}
+
+### Queue (`dev-tools/queue/`)
+
+- [ ] `uv run --directory dev-tools/queue pytest` clean
+- [ ] Schema migrations (if any) are documented
+- [ ] MCP tool surface changes (if any) are reflected in
+      `dev-tools/queue/README.md`
+
+### Docs / repo meta
+
+- [ ] Rendered preview looks right
+- [ ] Internal links resolve
+- [ ] No duplication of content that already lives elsewhere
+- [ ] CHANGELOG `[Unreleased]` updated if the change is user-visible
+
+{% if github_remote %}
+### CI / workflow changes
+
+- [ ] `yamllint` / workflow YAML check clean
+- [ ] `actionlint` clean
+- [ ] Failure modes thought through
+- [ ] Exercised with a throwaway input where possible
+{% endif %}
+
+---
+
+## If a rule bites you unfairly, change the rule
+
+Same as in `CONTRIBUTING.md`: this document exists to save time. If
+something in here is blocking a sensible change, open a PR that
+fixes the rule.

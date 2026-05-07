@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Launch the {{ project_name }} agent container with the right bind-mounts.
+#
+# By default boots an interactive shell. Pass `claude` (or any command)
+# to run that instead. The container has no SSH keys and no network
+# reach into anything the cell didn't sign up for — it's repo-only.
+{% if include_bot_identity %}
+# The bot identity in .agent-bot/ rides along via the repo bind-mount;
+# agent-authored commits go up via dev-tools/agent-bot/as-bot.sh as
+# usual.
+{% endif %}
+#
+# Examples:
+#   dev-tools/agent-container/run.sh                # interactive shell
+#   dev-tools/agent-container/run.sh claude         # boot Claude Code
+#   dev-tools/agent-container/run.sh -- bash -c 'echo hi'
+
+set -euo pipefail
+
+IMAGE="${AGENT_CONTAINER_IMAGE:-{{ project_name }}-agent:latest}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Claude Code's project state on the host is keyed by the absolute
+# path of the project root. Inside the container the repo lives at
+# /workspace/{{ project_name }}, so the in-container project dir is
+# named `-workspace-{{ project_name }}`. Bind-mount the host's
+# existing project state to that name so sessions, memory, and the
+# language model's hint state are continuous between host runs and
+# container runs.
+HOST_PROJECT_NAME="$(printf '%s' "$REPO_ROOT" | tr / -)"
+CONTAINER_PROJECT_NAME="-workspace-{{ project_name }}"
+HOST_PROJECT_DIR="$HOME/.claude/projects/$HOST_PROJECT_NAME"
+mkdir -p "$HOST_PROJECT_DIR"
+
+# DO NOT forward ANTHROPIC_API_KEY into this container. Setting that
+# variable routes claude through API per-token billing instead of the
+# Pro/Max subscription quota; a flat-rate subscription keeps cost
+# bounded. See README §"Billing — never use an API key".
+
+# Only attach an interactive TTY when this script is run from one.
+# Lets `run.sh bash -c '...'` work from CI / scripts / agent tools.
+TTY_FLAGS=()
+if [[ -t 0 && -t 1 ]]; then
+    TTY_FLAGS+=(-it)
+fi
+
+# Per-uv-project .venv overlays. The host's .venv directories link to
+# host-Python interpreters that don't exist inside the container; uv
+# would otherwise rebuild them in place via the bind-mount, clobbering
+# the host's venvs. Named volumes keep the container's venvs separate
+# and persistent across container runs (so subsequent boots reuse the
+# already-built venv).
+VENV_VOLUMES=(
+    -v {{ project_name }}-agent-venv-queue:/workspace/{{ project_name }}/dev-tools/queue/.venv
+)
+
+# Mask the cell's host-only Claude Code config from the container's
+# view. settings.local.json is gitignored and may contain MCP server
+# commands or Bash patterns with host-absolute paths that won't
+# resolve inside the container.
+#
+# .mcp.json is NOT masked: the cell's committed .mcp.json uses
+# `uv run --directory dev-tools/queue ...` (relative paths), which
+# works in both host and container.
+HOST_SETTINGS_MASK=()
+if [[ -f "$REPO_ROOT/.claude/settings.local.json" ]]; then
+    HOST_SETTINGS_MASK+=(-v /dev/null:/workspace/{{ project_name }}/.claude/settings.local.json:ro)
+fi
+
+# Named volume on /home/agent persists everything Claude Code (and
+# anything else running as `agent`) writes between container runs.
+# Critically this includes /home/agent/.claude.json — the user-config
+# file Claude Code stores at the home root, NOT inside ~/.claude/.
+# Without persisting that file the first-run wizard re-prompts on
+# every boot regardless of what's in ~/.claude/.
+#
+# Sign in once when the volume is fresh; subsequent boots skip the
+# auth flow. Multiple parallel containers can share the volume by
+# name. The entrypoint seeds ~/.claude/settings.json from the baked
+# baseline only on first boot.
+exec docker run --rm "${TTY_FLAGS[@]}" \
+    --hostname {{ project_name }}-agent \
+    -v "$REPO_ROOT:/workspace/{{ project_name }}" \
+    "${HOST_SETTINGS_MASK[@]}" \
+    "${VENV_VOLUMES[@]}" \
+    -v {{ project_name }}-agent-home:/home/agent \
+    -v "$HOST_PROJECT_DIR:/home/agent/.claude/projects/$CONTAINER_PROJECT_NAME" \
+    -w /workspace/{{ project_name }} \
+    "$IMAGE" \
+    "$@"

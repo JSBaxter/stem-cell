@@ -1,0 +1,120 @@
+# Manifesto — {{ project_name }}
+
+{{ project_purpose }}
+{% if project_description %}
+
+{{ project_description }}
+{% endif %}
+
+This cell exists to do one thing well. The doc spine below is its
+constitution; the queue is its memory; the operator is its reviewer.
+
+---
+
+## What this cell is
+
+A **cell** is the atomic unit of agent organisation. One repository,
+one purpose, one queue. Cells are spawned from a shared template
+([`stem-cell`][template]) and updated from it; they do not
+fork conventions silently.
+
+The cell metaphor is biological on purpose. The cell carries its own
+DNA (the template at the version pinned in `.copier-answers.yml`),
+its own metabolism (the queue, the CI pipeline if any), and its own
+boundary (this repo, the bot identity, the optional container). It
+specialises but stays recognisable as a member of the species.
+
+[template]: https://github.com/JSBaxter/stem-cell
+
+## What this cell is not
+
+- It is not a monorepo. If a second purpose appears, spawn a sibling.
+- It is not a sandbox. Real work happens here, on `main`, behind
+  PRs that the operator reviews.
+- It is not autonomous in the dangerous sense. The agent works
+  inside the cell's bounded blast radius. Out-of-scope changes
+  (live infra, shared services, other cells) flow through the
+  operator.
+
+## Operating principles
+
+The principles below are the cell's **prior**. `CONTRIBUTING.md`
+turns them into rules; `TESTING.md` turns them into checklists. When
+the rules and the principles disagree, fix the rules.
+
+### 1. The queue is memory
+
+Every non-trivial unit of work is tracked: claimed or scoped, opened
+as a session, closed on handoff or completion. If the queue does
+not record it, it did not happen — there is nothing to retro on,
+nothing to learn from, nothing for the next agent to inherit.
+
+### 2. STATE.md is operational truth
+
+What is running, what is wired, what is live — recorded in
+`STATE.md` in the same PR as the change that put it there. Memory
+diverging from state is the failure mode this rule exists to
+prevent.
+
+### 3. The contract, not the implementation
+
+Test what the cell promises to its callers, not the knobs you turned
+to deliver it. Idempotency is the floor: if applying a change twice
+does something different the second time, the change is wrong.
+
+### 4. Additive first, destructive last
+
+When a change replaces a live path — a route, a service, a config
+key, a function callers depend on — add the new path, verify it,
+move callers across, then remove the old one. Never delete the only
+working path in the same step that introduces its replacement.
+
+### 5. Fix the root cause
+
+When a tool blocks you (a hook, a typecheck, a test, a lint), do
+not bypass it. The block is information. `--no-verify` and its
+cousins are signals that something is wrong with the change or with
+the rule — not signals to plough through.
+
+### 6. If a rule hurts, fix the rule
+
+The doc spine is here to save time, not spend it. If a rule blocks
+sensible work, change it via PR; do not work around it silently. If
+the same blocker appears repeatedly, log a `request_feature` of
+kind `guidance_gap` and let the next ceremony surface it.
+
+### 7. One PR, one question
+
+A PR answers one question. "And also" in the description is the
+signal to split. Squash-merge keeps `main` legible; in-branch churn
+stays in the PR history.
+
+### 8. Reproduction over copy-paste
+
+If another cell needs this pattern, lift it into the template, then
+update both cells from the template. Cells share structure through
+the template, not through ad-hoc cross-repo copying.
+
+### 9. Bounded blast radius
+
+The agent's reach is the cell, the bot identity, and (optionally) a
+container. SSH keys, infra credentials, and live systems are out of
+scope unless the cell is explicitly built for them and the operator
+has approved the trust extension.
+
+### 10. The operator is a real reviewer
+
+PRs exist to be reviewed. The bot identity (if installed) authors
+the change so the operator account can be a real reviewer with
+veto power. Self-merging the agent's own work erodes the only human
+checkpoint between mistake and main.
+
+---
+
+## How this manifesto changes
+
+This file is editable. When the cell discovers a principle that
+serves it better than what is written here, propose an edit through
+the same PR + review flow as any other change. The operator may
+also bring a longer manifesto in over the top of this seed; that's
+expected — this version is starter content.

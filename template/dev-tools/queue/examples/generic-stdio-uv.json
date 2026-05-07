@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "queue": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "<absolute-path-to-cell>/dev-tools/queue",
+        "python",
+        "server.py",
+        "--db",
+        "./queue.db",
+        "--transport",
+        "stdio"
+      ]
+    }
+  }
+}

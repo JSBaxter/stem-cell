@@ -1,0 +1,17 @@
+# Template-repo-level ignores. Files inside template/ have their own
+# .gitignore.jinja that ships into the cell.
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local copier scratch
+.copier-answers.yml
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store

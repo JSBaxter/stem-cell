@@ -1,0 +1,162 @@
+_min_copier_version: "9.0.0"
+_subdirectory: template
+
+_envops:
+  trim_blocks: true
+  lstrip_blocks: true
+  keep_trailing_newline: true
+
+_exclude:
+  - "*.pyc"
+  - "__pycache__"
+  - ".venv"
+  - ".pytest_cache"
+  - ".mypy_cache"
+  - ".ruff_cache"
+  - "queue.db"
+  - "queue.db-*"
+  # Conditional excludes — empty pattern means "exclude nothing".
+  # Each gated dir gets two patterns: the dir itself (so empty stub
+  # dirs aren't created) AND its contents glob.
+  - "{% if not include_agent_container %}dev-tools/agent-container{% endif %}"
+  - "{% if not include_agent_container %}dev-tools/agent-container/**{% endif %}"
+  - "{% if not include_bot_identity %}dev-tools/agent-bot{% endif %}"
+  - "{% if not include_bot_identity %}dev-tools/agent-bot/**{% endif %}"
+  - "{% if language != 'python' %}.pre-commit-config.yaml{% endif %}"
+  - "{% if language != 'python' %}.yamllint.yml{% endif %}"
+  - "{% if not (language == 'python' and github_remote) %}.github{% endif %}"
+  - "{% if not (language == 'python' and github_remote) %}.github/**{% endif %}"
+  - "{% if license == 'none' %}LICENSE{% endif %}"
+
+_message_after_copy: |
+  Cell scaffolded.
+
+  Next steps inside the new cell:
+
+    git init && git add -A && git commit -m "chore(repo): initial cell from stem-cell"
+
+  If language=python, the queue is ready to run:
+
+    uv sync --directory dev-tools/queue
+    uv run --directory dev-tools/queue pytest
+
+  Read MANIFESTO.md, then CONTRIBUTING.md. REPRODUCTION.md describes how
+  this cell was born and how to spawn a sibling.
+
+_message_after_update: |
+  Cell updated from stem-cell.
+
+  Re-run the queue tests if dev-tools/queue/ changed:
+
+    uv run --directory dev-tools/queue pytest
+
+  Review the diff before committing — copier may have touched files you
+  edit by hand.
+
+# ---------------------------------------------------------------------------
+# Cell identity
+# ---------------------------------------------------------------------------
+
+project_name:
+  type: str
+  help: |
+    Cell name (kebab-case, lowercase, alphanumeric + hyphens).
+    Used for the directory, the MCP server name, and the Python package.
+  validator: >-
+    {% if not (project_name | regex_search('^[a-z][a-z0-9-]*$')) %}
+    project_name must start with a lowercase letter and contain only
+    lowercase letters, digits, and hyphens.
+    {% endif %}
+
+project_purpose:
+  type: str
+  help: |
+    One sentence: what does this cell exist to do? Seeds MANIFESTO.md.
+  multiline: false
+
+project_description:
+  type: str
+  help: |
+    Longer description (a paragraph or two) of why this cell exists,
+    what problem it solves, and what's out of scope. Optional.
+  multiline: true
+  default: ""
+
+# ---------------------------------------------------------------------------
+# Operator
+# ---------------------------------------------------------------------------
+
+operator_name:
+  type: str
+  help: "Operator name (commits, doc attribution)"
+
+operator_email:
+  type: str
+  help: "Operator email"
+
+# ---------------------------------------------------------------------------
+# Toolchain
+# ---------------------------------------------------------------------------
+
+language:
+  type: str
+  help: |
+    Primary language for the cell. 'python' wires up uv + ruff + pytest +
+    pre-commit. 'none' leaves the cell language-agnostic; the queue still
+    runs (it brings its own uv project).
+  choices:
+    - python
+    - none
+  default: python
+
+# ---------------------------------------------------------------------------
+# Optional cell capabilities
+# ---------------------------------------------------------------------------
+
+include_agent_container:
+  type: bool
+  help: |
+    Include dev-tools/agent-container/ — a Docker image for running the
+    agent (Claude Code) with full in-container autonomy and bounded blast
+    radius. Pairs well with include_bot_identity.
+  default: false
+
+include_bot_identity:
+  type: bool
+  help: |
+    Include dev-tools/agent-bot/ — wrappers (mint-token.sh, as-bot.sh) for
+    a separate GitHub App bot identity, so the operator can be a real
+    reviewer on the agent's PRs. Requires creating the App externally.
+  default: false
+
+github_remote:
+  type: bool
+  help: |
+    Cell will be pushed to GitHub? Enables the PR-based workflow rules in
+    CONTRIBUTING and the GH Actions quality skeleton.
+  default: true
+
+# ---------------------------------------------------------------------------
+# Licensing
+# ---------------------------------------------------------------------------
+
+license:
+  type: str
+  help: "License for the cell"
+  choices:
+    - MIT
+    - Apache-2.0
+    - none
+  default: MIT
+
+copyright_holder:
+  type: str
+  help: "Copyright holder for the LICENSE file"
+  default: "{{ operator_name }}"
+  when: "{{ license != 'none' }}"
+
+copyright_year:
+  type: int
+  help: "Copyright year"
+  default: 2026
+  when: "{{ license != 'none' }}"

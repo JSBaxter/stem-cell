@@ -1,0 +1,396 @@
+# Contributing
+
+Rules for anyone — human or agent — making changes to this cell.
+These are the canonical rules; other docs that touch workflow
+(`CLAUDE.md`, `AGENTS.md`, sub-directory READMEs) defer to this one.
+
+If you're reading this for the first time, read it end-to-end before
+making changes.
+
+---
+
+## Golden rules
+
+{% if github_remote %}
+1. **Every change goes through a branch + PR.** No direct commits to
+   `main`.
+{% else %}
+1. **Every change goes through a branch.** Even without a remote, the
+   branch + merge discipline keeps `main` legible.
+{% endif %}
+2. **Conventional Commits.** Commit messages follow the format below.
+3. **`STATE.md` is operational truth.** If your change alters what's
+   actually running, update `STATE.md` in the same PR.
+4. **Never commit secrets, state, or large binaries.** `.env`, vault
+   files, build artifacts, and credentials are gitignored — keep it
+   that way.
+5. **Use the queue for non-trivial work.** See "Queue discipline".
+
+---
+
+## Queue discipline
+
+For non-trivial work in this cell, agents are expected to use
+`dev-tools/queue/`.
+
+Use the queue when the work involves any of:
+
+- code or config edits
+- multi-step investigation
+- review or handoff
+- blockers, repeated work, or unclear process
+
+You may skip the queue only for:
+
+- trivial read-only lookups
+- one-shot factual answers with no repo change
+- very short checks where opening a session would add no useful record
+
+Minimum expected flow:
+
+1. Check queue readiness with `health`
+2. Claim an existing task with `claim_task`, or create/scope one with
+   `add_idea` and `scope_task`
+3. Open a session before substantial work with `open_session`
+4. During work, record useful metadata: tokens, notes, tool-call
+   summary, patterns, theory, provenance. `tool_calls_summary` is a
+   flat map of tool name to integer count (e.g. `{"Read": 12,
+   "Edit": 3}`); nested objects aren't accepted.
+5. If blocked, repeating yourself, or missing guidance, log it with
+   `request_feature`
+{% if github_remote %}
+6. Close the session with `close_session` when the work pauses or
+   hands off. Mark the task `done` with `complete_task` only after
+   the branch merges.
+{% else %}
+6. Close the session with `close_session` when the work pauses or
+   hands off. Mark the task `done` with `complete_task` after the
+   branch is merged into `main`.
+{% endif %}
+
+{% if github_remote %}
+PRs and final handoff messages for non-trivial work should mention
+the queue task ID when one exists. If queue use was intentionally
+skipped, say why.
+{% endif %}
+
+Operational guide: `dev-tools/queue/WORKFLOW.md`.
+
+---
+
+## Ceremonies
+
+Recurring process activities (backlog grooming, project health
+check, structural review, workflow retro) fire on a modulo cadence
+anchored to {{ "merged PR" if github_remote else "merge-to-main" }}
+numbers. The catalogue and trigger rule live in
+[`CEREMONIES.md`](./CEREMONIES.md). Whichever agent picks up
+post-merge work checks the modulos and fires any matching
+ceremonies before starting unrelated work.
+
+---
+
+## Tooling conventions
+
+{% if language == "python" %}
+### Quality checks use pre-commit
+
+Top-level `.pre-commit-config.yaml` runs the relevant tools.
+Install and run with:
+
+```bash
+uvx pre-commit install
+uvx pre-commit run --all-files
+```
+
+{% if github_remote %}
+The same checks run in GitHub Actions via
+`.github/workflows/quality.yml`.
+{% endif %}
+
+### Python toolchain
+
+| Concern                   | Tool         | Source             |
+|---------------------------|--------------|--------------------|
+| Project / package manager | `uv`         | Astral             |
+| Build backend             | `uv_build`   | Astral             |
+| Linter + formatter        | `ruff`       | Astral             |
+| Type checker              | `ty`         | Astral             |
+| Test runner               | `pytest`     | pytest project     |
+| Pre-commit framework      | `pre-commit` | pre-commit project |
+
+Default principle: if Astral ships a tool for the concern, use it.
+Pick a mature alternative only when Astral has no coverage
+(currently: test runner, pre-commit framework).
+
+### Python sub-projects use their own `uv` project
+
+Each Python-based sub-project (`dev-tools/queue/` is the bundled
+example) manages tooling locally via `uv` — `pyproject.toml` +
+`uv.lock` — and runs via `uv run --directory <subproject> ...`.
+Don't depend on globally-installed `pip`, `pipx`, or `uv tool`
+unless the tool is explicitly user-global.
+
+### Python style
+
+Imports at module top per PEP 8. Inline imports inside a function
+are acceptable only for a functional reason (breaking a circular
+import, deferring an optional or heavy dependency, working around a
+load-order constraint). "I added it where I needed it" is not a
+functional reason; lift it.
+{% else %}
+### Quality checks
+
+This cell is language-agnostic. Add the appropriate quality tooling
+when you commit to a primary language: linter, formatter, test
+runner, type checker. The bundled queue under `dev-tools/queue/`
+brings its own Python toolchain via `uv` regardless of the cell's
+primary language.
+{% endif %}
+
+---
+
+## Branching
+
+### Model
+
+Trunk-based: `main` is the only long-lived branch. Feature branches
+are short-lived (≤ 2 days) and merge back via PR. If a branch grows
+beyond that, split the work or rebase it into a smaller deliverable.
+
+### Naming
+
+```
+<type>/<kebab-case-subject>
+```
+
+`<type>` must be one of:
+
+| Type       | Use for                                                |
+|------------|--------------------------------------------------------|
+| `feat`     | New capability                                         |
+| `fix`      | Bug fix or correction to existing behavior             |
+| `docs`     | Documentation only                                     |
+| `refactor` | Code change that neither adds features nor fixes bugs  |
+| `chore`    | Tooling, deps, housekeeping                            |
+| `ci`       | CI/CD configuration                                    |
+
+`<kebab-case-subject>`: short, descriptive, imperative, ≤ 40 chars.
+Avoid dates, initials, or ticket numbers.
+
+### Lifecycle
+
+1. `git checkout main && git pull`
+2. `git checkout -b <type>/<subject>`
+3. Make changes, commit early and often locally
+4. Before opening a PR: rebase onto latest `main`, clean up commits
+   if noisy
+{% if github_remote %}
+5. `git push -u origin <branch>`
+6. Open PR
+7. After merge: branch is deleted
+{% else %}
+5. Merge into `main` (fast-forward or `--no-ff`, your choice)
+6. Delete the branch
+{% endif %}
+
+---
+
+## Commits
+
+### Format — Conventional Commits v1.0.0
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### Types
+
+| Type       | Use for                                                |
+|------------|--------------------------------------------------------|
+| `feat`     | New feature                                            |
+| `fix`      | Bug fix                                                |
+| `docs`     | Docs only                                              |
+| `style`    | Formatting, whitespace, no code change                 |
+| `refactor` | Neither adds features nor fixes bugs                   |
+| `perf`     | Performance improvement                                |
+| `test`     | Adding or fixing tests                                 |
+| `build`    | Build system / external deps                           |
+| `ci`       | CI/CD config                                           |
+| `chore`    | Tooling, deps, housekeeping                            |
+| `revert`   | Reverts a previous commit                              |
+
+### Scopes
+
+Use one of (extend the list in this file as the cell grows):
+
+- `repo` — root-level changes not tied to a single subsystem
+- `docs` — repo-level docs (README, STATE, CONTRIBUTING, etc.)
+- `dev-tools` — anything under `dev-tools/`
+- `queue` — `dev-tools/queue/` specifically
+
+Scope is optional if genuinely cross-cutting, but prefer to set it.
+
+### Subject
+
+- Imperative mood (`add`, `fix`, `move` — not `adds`, `fixed`, `moved`)
+- ≤ 72 characters
+- No trailing period
+- Lowercase after the colon
+
+### Body (optional but usually helpful)
+
+- Wrap at 72 characters
+- Explain **why**, not **what** — the diff shows what
+- Separate from subject with a blank line
+
+### Footer (optional)
+
+- `BREAKING CHANGE: <description>` for changes that alter the
+  cell's operational contract
+- `Refs: #<issue>` or `Closes: #<issue>` if you're using issues
+
+---
+
+{% if github_remote %}
+## Pull requests
+
+### One PR, one logical change
+
+A PR should answer one question. If you find yourself writing "and
+also" in the description, split it.
+
+### PR description template
+
+```
+## What
+<one-sentence summary>
+
+## Why
+<motivation — what problem does this solve?>
+
+## How
+<brief pointer to approach, only if non-obvious>
+
+## Verification
+<paste the checklist block from TESTING.md that matches your change
+type, ticked off>
+```
+
+### Review / merge
+
+- Self-approval is acceptable while the cell is single-contributor,
+  but the PR workflow still applies — it forces the
+  diff-and-description discipline and gives every change a durable
+  URL.
+{% if include_bot_identity %}
+- The bot identity (`dev-tools/agent-bot/as-bot.sh`) authors the
+  agent's commits and PRs so the operator account remains a real
+  reviewer.
+{% endif %}
+- Squash-merge is the default
+- Delete the branch after merge
+
+---
+
+{% endif %}
+## Testing
+
+Every change must demonstrate that it works. **How** that's
+demonstrated depends on the change type — full catalogue in
+`TESTING.md`.
+
+Non-negotiables that apply to every change:
+
+- **Idempotent.** Running the converging operation twice produces no
+  changes the second time.
+- **Cleans up on failure.** Test setup leaves no stragglers, even if
+  the test blew up mid-way.
+- **Scoped.** You test your config of a tool, not the tool itself.
+- **Contract over implementation.** Test what the system promises to
+  its users, not the knobs you turned to get there.
+
+Read `TESTING.md` end-to-end once. It covers the principles in
+detail, the per-change-type checklists, and an explicit list of
+what **not** to test.
+
+---
+
+## Versioning + releases
+
+### Scheme — SemVer, pre-1.0
+
+`vMAJOR.MINOR.PATCH`. While pre-1.0 (`v0.x.y`):
+
+- `PATCH` — fixes, small additions, doc-only changes
+- `MINOR` — new capability
+- `MAJOR` — reserved until the cell is considered stable
+
+Post-1.0, standard SemVer.
+
+### Tagging
+
+- Annotated tags only: `git tag -a vX.Y.Z -m "<summary>"`
+- Tags sit on `main` commits only
+{% if github_remote %}
+- Push tags explicitly: `git push origin vX.Y.Z`
+{% endif %}
+
+### CHANGELOG
+
+Update `CHANGELOG.md` (Keep-a-Changelog format) in the same PR that
+introduces the change. On release, move items from `[Unreleased]`
+into a new version section with the release date.
+
+---
+
+## Directory ownership
+
+| If your change is about...                           | It belongs in...                          |
+|------------------------------------------------------|-------------------------------------------|
+| Operational truth (what's live)                      | `STATE.md`                                |
+| Repo-level rules, conventions, navigation            | Root (README, CONTRIBUTING, CHANGELOG)    |
+| Cell identity / first principles                     | `MANIFESTO.md`                            |
+| Local-only developer tooling                         | `dev-tools/<name>/`                       |
+| Reproduction protocol                                | `REPRODUCTION.md` (managed by template)   |
+
+If a change doesn't fit, raise it in the PR description. Don't
+invent a new top-level directory without consensus.
+
+---
+
+## Documentation
+
+### Three docs at root, each with one job
+
+| File              | Purpose                                                 |
+|-------------------|---------------------------------------------------------|
+| `README.md`       | Map the repo. Navigation only. Keep it short.           |
+| `STATE.md`        | What's running right now. Operational truth.            |
+| `CONTRIBUTING.md` | This file. Rules for contributing.                      |
+
+`MANIFESTO.md`, `CEREMONIES.md`, `REPRODUCTION.md`, `TESTING.md`,
+and `CHANGELOG.md` round out the spine. Per-directory READMEs
+describe scope, tool versions, setup, and known caveats.
+
+### When to update docs
+
+- Operational change → `STATE.md`
+- New rule, convention, or workflow shift → `CONTRIBUTING.md`
+- New directory or scope → `README.md` map + dir README
+- Released version → `CHANGELOG.md`
+- First-principles shift → `MANIFESTO.md`
+
+Don't duplicate information across docs. Link instead.
+
+---
+
+## If a rule bites you unfairly, change the rule
+
+This document is here to save time, not spend it. If something in
+here is blocking a sensible change, open a PR that fixes the rule —
+not one that ignores it.

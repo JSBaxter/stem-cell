@@ -1,0 +1,50 @@
+---
+name: quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  queue:
+    name: dev-tools/queue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync queue env
+        run: uv sync --directory dev-tools/queue
+
+      - name: Ruff format
+        run: uv run --directory dev-tools/queue ruff format --check
+
+      - name: Ruff lint
+        run: uv run --directory dev-tools/queue ruff check
+
+      - name: Mypy
+        run: uv run --directory dev-tools/queue mypy .
+
+      - name: Pytest
+        run: uv run --directory dev-tools/queue pytest -q
+
+  workflows:
+    name: workflow lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: actionlint
+        run: uvx --from actionlint-py actionlint
+      - name: yamllint
+        run: uvx yamllint .github/

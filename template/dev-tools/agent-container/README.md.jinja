@@ -1,0 +1,166 @@
+# `dev-tools/agent-container/`
+
+A Docker container for running Claude Code with full in-container
+autonomy (no permission prompts) but bounded blast radius — the
+agent sees only the cell repo and `~/.claude/` state, nothing else
+on the operator's host.
+
+## What's in the box
+
+| Layer    | Contents |
+|----------|----------|
+| Base     | Debian bookworm-slim |
+| Runtime  | Node.js 20, uv (latest), GitHub CLI |
+| Agent    | `@anthropic-ai/claude-code` CLI |
+| Tools    | git, gh, openssl, curl, jq, ripgrep, less, sudo |
+| User     | `agent` (uid 1000), passwordless sudo inside container |
+| Settings | `claude-settings.json` with `defaultMode: bypassPermissions` |
+
+The container has **no** pre-loaded SSH keys, **no** infra-side
+credentials, **no** docker-in-docker. It can clone, commit, push,
+open PRs{% if include_bot_identity %} via the bot identity
+(`dev-tools/agent-bot/as-bot.sh`){% endif %} — and that's it.
+
+## Bind mounts (set up by `run.sh`)
+
+| Host path                    | Container path                                    | Mode | Why |
+|------------------------------|---------------------------------------------------|------|-----|
+| repo root                    | `/workspace/{{ project_name }}`                   | rw   | The cell repo. |
+| `~/.claude/projects/<repo>`  | `/home/agent/.claude/projects/-workspace-{{ project_name }}` | rw   | Sessions + memory persist across container runs. |
+
+Anthropic credentials are NOT bind-mounted from the host — the
+container has its own OAuth state in a named volume (see below).
+Sign in once when the volume is fresh; subsequent container starts
+skip the auth flow.
+
+### Named volumes (managed by `run.sh`)
+
+| Named volume                            | Container path                                          | What's stored |
+|-----------------------------------------|---------------------------------------------------------|---------------|
+| `{{ project_name }}-agent-home`         | `/home/agent`                                           | The whole agent home dir. Includes `~/.claude/` (OAuth tokens, session metadata) AND `~/.claude.json` (Claude Code's user-config file at the home root — the first-run wizard re-prompts forever if this isn't persisted). |
+| `{{ project_name }}-agent-venv-queue`   | `/workspace/{{ project_name }}/dev-tools/queue/.venv`   | uv project venv for the bundled queue |
+
+Add a named volume for any new uv project the cell grows; otherwise
+the host venv and the container venv collide via the bind-mount.
+
+The `entrypoint.sh` baked into the image seeds
+`~/.claude/settings.json` from `/opt/claude-settings.json` **only on
+the first boot** (when the named volume is fresh). Subsequent boots
+leave the file alone — Claude Code persists theme choice, first-run
+markers, and other preferences inside `settings.json`, so
+unconditionally overwriting it on every start makes claude treat
+every run as a fresh install (re-prompt for theme + OAuth).
+
+Trade-off: image updates to the baseline `claude-settings.json` don't
+propagate automatically to existing volumes. To pick them up:
+
+```bash
+docker volume rm {{ project_name }}-agent-home
+dev-tools/agent-container/run.sh claude   # re-auth once
+```
+
+Same command also forces a re-auth (e.g. switching Anthropic
+accounts).
+
+Nothing else is shared with the host — `$HOME`, `~/.ssh`, `~/.gnupg`,
+`/var/run/docker.sock`, all out of scope.
+
+## MCP servers
+
+The cell's `.mcp.json` at the repo root (committed, portable
+relative paths) configures the **queue** MCP server. Claude Code
+reads `.mcp.json` from any project's root as the canonical
+project-scope MCP config — works in both host and container without
+any image-baked overrides. The queue.db is shared between host and
+container via the repo bind-mount; each Claude Code instance spawns
+its own `server.py` subprocess and SQLite locking handles
+concurrency.
+
+Other MCP servers configured globally on the host are intentionally
+not in the container — they'd need OAuth state the container
+shouldn't see.
+
+## Build + run
+
+```bash
+# Build the image (one-time, or after Dockerfile changes):
+docker build -t {{ project_name }}-agent:latest dev-tools/agent-container/
+
+# Boot a shell in the container, with the repo bind-mounted:
+dev-tools/agent-container/run.sh
+
+# Boot Claude Code directly:
+dev-tools/agent-container/run.sh claude
+```
+
+Inside the container:
+
+- The repo is at `/workspace/{{ project_name }}`. `git status` works
+  as expected.
+{% if include_bot_identity %}
+- `dev-tools/agent-bot/as-bot.sh git push ...` works the same as on
+  the host — the credentials at `.agent-bot/` ride along through the
+  repo bind-mount.
+- `gh` works — the bot's GH_TOKEN is minted on demand.
+{% endif %}
+- `uv run --directory dev-tools/queue pytest` works.
+
+## Multi-agent
+
+The image and `run.sh` are designed so multiple containers can run
+side-by-side against the same repo + creds:
+
+```bash
+AGENT_CONTAINER_IMAGE={{ project_name }}-agent:latest \
+    dev-tools/agent-container/run.sh
+```
+
+(in another terminal — Docker handles the parallelism). The queue's
+SQLite locking handles concurrent claims from multiple agents.
+
+## Billing — never use an API key
+
+If you're billed on a flat-rate Claude subscription (Pro/Max), the
+cost difference between subscription and API-per-token is large
+enough that **one accidental API run can exceed a year of
+subscription cost**.
+
+Two rules:
+
+1. **Never set `ANTHROPIC_API_KEY`** in any shell that launches this
+   container. `run.sh` deliberately does not forward the variable
+   into the container, but a global export (`~/.bashrc`,
+   `~/.profile`, a sourced `.env`) can still leak it to other tools.
+   If you don't have an API key, you can't accidentally use one;
+   leave it that way.
+2. **Do not run `claude -p ...`** (print / non-interactive mode).
+   Documented bug
+   [anthropics/claude-code#43333](https://github.com/anthropics/claude-code/issues/43333):
+   even Pro/Max OAuth credentials are silently routed through API
+   per-token billing in print mode. Use the interactive `claude`
+   flow only until the upstream fix lands; the default boot path
+   (`run.sh claude`) is interactive and safe.
+
+If you ever genuinely need API billing, that's a deliberate choice
+that should be made via a separate launcher, not this one.
+
+## Threat model
+
+The container's trust boundary is the bind-mounted repo + agent
+home dir. A compromise of the agent inside the container can:
+
+- Read and modify the cell repo (and push to `main`{% if include_bot_identity %} via the bot{% endif %}).
+- Read and modify Claude Code session/memory state for this cell.
+- Read the Anthropic credentials file in the agent home volume.
+- Use `sudo` inside the container (but cannot escape it).
+
+A compromise of the agent inside the container **cannot**:
+
+- Read or modify any other operator file (no host filesystem
+  access).
+- Reach hosts the cell didn't bind to.
+- Reach any operator service or account beyond GitHub via the
+  cell's identity.
+
+The first checkpoint after compromise is the operator's PR review —
+malicious code only lands if it slips through review.

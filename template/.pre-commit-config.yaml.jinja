@@ -1,0 +1,63 @@
+---
+# Cell quality hooks. Run locally before each commit:
+#
+#   uvx pre-commit install   # one-time, registers .git/hooks/pre-commit
+#   uvx pre-commit run --all-files   # ad-hoc full sweep
+#
+# These hooks use `uv run --directory` so each subproject's tooling
+# lives in its own venv. The queue ships with its own pyproject; add
+# similar entries here as the cell grows new uv-managed sub-projects.
+
+repos:
+  - repo: local
+    hooks:
+      - id: queue-ruff-format
+        name: queue — ruff format
+        entry: uv run --directory dev-tools/queue ruff format --check
+        language: system
+        files: ^dev-tools/queue/.*\.py$
+        pass_filenames: false
+
+      - id: queue-ruff-lint
+        name: queue — ruff check
+        entry: uv run --directory dev-tools/queue ruff check
+        language: system
+        files: ^dev-tools/queue/.*\.py$
+        pass_filenames: false
+
+      - id: queue-mypy
+        name: queue — mypy
+        entry: uv run --directory dev-tools/queue mypy .
+        language: system
+        files: ^dev-tools/queue/.*\.py$
+        pass_filenames: false
+
+      - id: queue-pytest
+        name: queue — pytest
+        entry: uv run --directory dev-tools/queue pytest -q
+        language: system
+        files: ^dev-tools/queue/.*\.(py|sql)$
+        pass_filenames: false
+
+      - id: yamllint
+        name: yamllint
+        entry: uvx yamllint
+        language: system
+        types: [yaml]
+        # Don't double-up on workflow files; actionlint covers semantics,
+        # yamllint covers structure. Both are useful.
+
+      - id: shellcheck-syntax
+        name: bash -n (shell syntax)
+        entry: bash -n
+        language: system
+        types: [shell]
+{% if github_remote %}
+
+      - id: actionlint
+        name: actionlint (workflow static analysis)
+        entry: uvx --from actionlint-py actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        pass_filenames: false
+{% endif %}

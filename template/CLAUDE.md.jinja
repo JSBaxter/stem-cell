@@ -1,0 +1,33 @@
+# Claude Code — repo entrypoint
+
+You are working in an agent cell — one repository, one purpose, one
+queue. Before making changes, read these files in order:
+
+1. **`MANIFESTO.md`** — the cell's identity and operating principles.
+2. **`CONTRIBUTING.md`** — canonical rules: branching, commits,
+   queue discipline, directory ownership. Non-optional.
+3. **`TESTING.md`** — how to verify a change before merging.
+4. **`STATE.md`** — current operational truth.
+5. **`README.md`** — directory map.
+
+If anything you read elsewhere conflicts with `CONTRIBUTING.md`,
+`CONTRIBUTING.md` wins.
+
+## Quick checklist before you commit
+
+- [ ] Working on a branch named `<type>/<kebab-case-subject>` (not `main`)
+- [ ] Commit message follows Conventional Commits:
+      `<type>(<scope>): <subject>`
+- [ ] If the change is operational (actually affects what's running),
+      `STATE.md` is updated in the same PR
+- [ ] For non-trivial work, the queue at `dev-tools/queue/` is used:
+      task claimed or created, session opened, and session closed
+      before handoff or completion
+- [ ] No secrets, state, or large binaries staged
+
+## Reproduction
+
+This cell was scaffolded from the
+[`stem-cell`](https://github.com/JSBaxter/stem-cell).
+See `REPRODUCTION.md` for how to spawn a sibling cell or pull
+template updates into this one.
