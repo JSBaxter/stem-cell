@@ -834,7 +834,7 @@ def create_trace(
         if perm_events:
             tags.append("has-permission-flags")
             langfuse.update_current_trace(tags=tags)
-            flag_summary = {}
+            flag_summary: dict[str, int] = {}
             for evt in perm_events:
                 for flag in evt.get("flags", []):
                     flag_summary[flag] = flag_summary.get(flag, 0) + 1
