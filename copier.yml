@@ -24,8 +24,13 @@ _exclude:
   - "{% if not include_bot_identity %}dev-tools/agent-bot/**{% endif %}"
   - "{% if language != 'python' %}.pre-commit-config.yaml{% endif %}"
   - "{% if language != 'python' %}.yamllint.yml{% endif %}"
-  - "{% if not (language == 'python' and github_remote) %}.github{% endif %}"
-  - "{% if not (language == 'python' and github_remote) %}.github/**{% endif %}"
+  # .github/ as a whole is only excluded when github_remote is off entirely.
+  - "{% if not github_remote %}.github{% endif %}"
+  - "{% if not github_remote %}.github/**{% endif %}"
+  # Python-specific CI lives under .github/workflows/; non-python cells get
+  # a .github/ directory (for CODEOWNERS at minimum) but no workflows.
+  - "{% if not (language == 'python' and github_remote) %}.github/workflows{% endif %}"
+  - "{% if not (language == 'python' and github_remote) %}.github/workflows/**{% endif %}"
   - "{% if license == 'none' %}LICENSE{% endif %}"
 
 _message_after_copy: |
@@ -137,6 +142,14 @@ github_remote:
     Cell will be pushed to GitHub? Enables the PR-based workflow rules in
     CONTRIBUTING and the GH Actions quality skeleton.
   default: true
+
+operator_github_handle:
+  type: str
+  help: |
+    Your GitHub username (the @handle, e.g. JSBaxter). Used to populate
+    .github/CODEOWNERS so PRs auto-request your review and the
+    "review requested" notification fires on your phone.
+  when: "{{ github_remote }}"
 
 # ---------------------------------------------------------------------------
 # Licensing
