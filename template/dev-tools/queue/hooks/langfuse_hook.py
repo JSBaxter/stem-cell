@@ -76,7 +76,7 @@ sys.path = [
 
 # Check if Langfuse is available
 try:
-    from langfuse import Langfuse
+    from langfuse import Langfuse  # type: ignore[import-not-found]
 except ImportError:
     print(
         "Error: langfuse package not installed. Run: pip install langfuse",
@@ -492,7 +492,7 @@ def find_latest_transcript() -> tuple[str, Path, str] | None:
         return None
 
     latest_file = None
-    latest_mtime = 0
+    latest_mtime: float = 0.0
     latest_project_dir = None
 
     for project_dir in projects_dir.iterdir():
@@ -610,10 +610,10 @@ def queue_turns_from_messages(
     """Parse messages into turns and queue them locally. Returns number of turns queued."""
     turns = 0
     current_user = None
-    current_assistants = []
-    current_assistant_parts = []
+    current_assistants: list[Any] = []
+    current_assistant_parts: list[Any] = []
     current_msg_id = None
-    current_tool_results = []
+    current_tool_results: list[Any] = []
 
     for msg in messages:
         role = msg.get("type") or (msg.get("message", {}).get("role"))
@@ -905,10 +905,10 @@ def process_transcript(
     # Group messages into turns (user -> assistant(s) -> tool_results)
     turns = 0
     current_user = None
-    current_assistants = []
-    current_assistant_parts = []
+    current_assistants: list[Any] = []
+    current_assistant_parts: list[Any] = []
     current_msg_id = None
-    current_tool_results = []
+    current_tool_results: list[Any] = []
 
     for msg in new_messages:
         role = msg.get("type") or (msg.get("message", {}).get("role"))
