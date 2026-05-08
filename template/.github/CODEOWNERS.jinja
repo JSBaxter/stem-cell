@@ -1,0 +1,12 @@
+# CODEOWNERS — auto-requests review from the listed owner on any PR
+# that touches matching paths. The single `*` rule means every PR
+# auto-requests `{{ operator_github_handle }}`, which is what fires the
+# "review requested" mobile notification.
+#
+# Branch protection's "require approving review count" gates the merge
+# button independently of this file; CODEOWNERS just makes sure the
+# right person is *asked*. They're complementary, not redundant.
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+* @{{ operator_github_handle }}
