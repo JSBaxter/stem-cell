@@ -313,15 +313,15 @@ issue, an `@claude` comment on such an issue, an operator PR review or
 review comment, or a manual `workflow_dispatch`. **Only the operator and
 the colony bot can trigger a run** — a job-level `if:` plus a verify step
 fail closed for anyone else, and repo interaction limits are a second
-layer. Claude's work is committed and a PR prepared under the colony bot
-App identity, so the operator stays a real reviewer.
+layer. Claude commits its work under the colony bot App identity and opens
+a PR, so the operator stays a real reviewer.
 
-It needs these repo secrets (set once per cell, or shared at user level):
-`CLAUDE_ACCESS_TOKEN`, `CLAUDE_REFRESH_TOKEN`, `CLAUDE_EXPIRES_AT` (the
-Claude OAuth triple from `claude setup-token`), `SECRETS_ADMIN_PAT` (a
-fine-grained PAT with `secrets:write` for OAuth refresh), and
-`COLONY_BOT_APP_ID` + `COLONY_BOT_PRIVATE_KEY` (the colony App used by
-`dev-tools/agent-bot/`). The App must have `issues:write`,
+It uses the official `anthropics/claude-code-action@v1` with Claude
+**subscription** auth (not API-billed). It needs these repo secrets (set
+once per cell, or shared at user level): `CLAUDE_CODE_OAUTH_TOKEN` (from
+`claude setup-token` — a ~1-year token; re-run and update the secret when
+it expires) and `COLONY_BOT_APP_ID` + `COLONY_BOT_PRIVATE_KEY` (the colony
+App used by `dev-tools/agent-bot/`). The App must have `issues:write`,
 `contents:write`, and `pull-requests:write`, and be installed on every
 cell it should reach.
 

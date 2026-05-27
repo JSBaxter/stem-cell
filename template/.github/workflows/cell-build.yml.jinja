@@ -221,7 +221,7 @@ jobs:
             esac
             echo
             echo 'CI rules for this run:'
-            echo '- Do the work in this repo. The action commits your changes and prepares a PR for the operator to review; you do not need to commit or push yourself.'
+            echo '- Do the work in this repo on the branch the workflow checked out. When your changes are ready, open a pull request against the default branch so the operator can review: commit and push your work if it is not already pushed, then run `gh pr create --fill`. Do NOT merge it yourself.'
             echo '- Stay in scope. If you notice out-of-scope work, file a self-directed follow-up issue in THIS repo with the claude-build label rather than expanding scope. Put any operator-facing notes in CLAUDE_NOTES.md.'
             echo "- To file a feature request against another cell, discover cells with: gh search repos --owner ${OWNER} --topic colony-cell ; then file with: gh issue create --repo ${OWNER}/<cell> --label claude-build,from-cell --title '<title>' --body '<body>'. The ambient gh token is the colony bot, scoped across colony cells; issues you file appear authored by the bot, which is correct."
             echo '- You cannot create new cells. If the work seems to need a brand-new cell, do not scaffold one - describe the need in CLAUDE_NOTES.md for the operator (cells are spawned from the stem-cell template per REPRODUCTION.md).'
@@ -230,40 +230,25 @@ jobs:
 
       - name: Run Claude
         if: steps.gate.outputs.should_run == 'true'
-        uses: grll/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
-          use_oauth: true
-          claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
-          claude_refresh_token: ${{ secrets.CLAUDE_REFRESH_TOKEN }}
-          claude_expires_at: ${{ secrets.CLAUDE_EXPIRES_AT }}
-          secrets_admin_pat: ${{ secrets.SECRETS_ADMIN_PAT }}
-          # Custom App identity for all git/gh operations, so commits and the
-          # prepared PR are authored by the colony bot (operator can review).
+          # Subscription auth via a single long-lived OAuth token from
+          # `claude setup-token` (Pro/Max plan; not API-billed, no refresh PAT).
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Custom App identity for all git/gh operations, so commits, the PR,
+          # and any cross-cell issues are authored by the colony bot. Being
+          # owner-scoped, this token is also Claude's gh auth across colony cells.
           github_token: ${{ steps.app-token.outputs.token }}
-          direct_prompt: ${{ steps.prompt.outputs.text }}
+          prompt: ${{ steps.prompt.outputs.text }}
           branch_prefix: "claude/"
-          timeout_minutes: "55"
-          allowed_tools: "Bash,Edit,MultiEdit,Write,Read,Glob,Grep,mcp__queue"
-          # Enable the queue MCP server (the cell's memory) with its DB at the
-          # out-of-workspace path we restored above. A checked-out .mcp.json
-          # isn't auto-trusted in non-interactive CI, so pass it explicitly.
-          mcp_config: |
-            {
-              "mcpServers": {
-                "queue": {
-                  "command": "uv",
-                  "args": [
-                    "run", "--directory", "dev-tools/queue",
-                    "python", "server.py",
-                    "--db", "${{ runner.temp }}/cell-queue.db",
-                    "--transport", "stdio"
-                  ]
-                }
-              }
-            }
-          # Expose the colony token to Claude's shell for cross-cell gh calls.
-          claude_env: |
-            GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          # v1 takes CLI flags via claude_args. Enable the queue MCP server (the
+          # cell's memory) pointed at the out-of-workspace DB we restored above,
+          # allow the tools Claude needs, and cap turns. The MCP server name
+          # "queue" must match the mcp__queue allow-list entry.
+          claude_args: |
+            --max-turns 30
+            --mcp-config '{"mcpServers":{"queue":{"type":"stdio","command":"uv","args":["run","--directory","${{ github.workspace }}/dev-tools/queue","python","server.py","--db","${{ runner.temp }}/cell-queue.db","--transport","stdio"]}}}'
+            --allowedTools "Bash,Edit,MultiEdit,Write,Read,Glob,Grep,mcp__queue"
 
       - name: Persist queue state
         # Save the (possibly updated) queue back to the state branch so the
