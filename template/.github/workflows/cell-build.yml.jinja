@@ -21,6 +21,8 @@ on:
     types: [submitted]
   pull_request_review_comment:
     types: [created]
+  pull_request:
+    types: [closed]
   workflow_dispatch:
     inputs:
       prompt:
@@ -82,6 +84,9 @@ jobs:
           SENDER: ${{ github.event.sender.login }}
           HAS_LABEL: ${{ contains(github.event.issue.labels.*.name, 'claude-build') }}
           COMMENT_BODY: ${{ github.event.comment.body }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           should_run=false
           case "$EVENT_NAME" in
@@ -107,7 +112,29 @@ jobs:
                 should_run=true
               fi
               ;;
+            pull_request)
+              # A merge wakes the agent to run the post-merge cycle.
+              if [ "$PR_MERGED" = "true" ]; then
+                should_run=true
+              fi
+              ;;
           esac
+          # One PR in flight: if an agent PR (head claude/*) is already open
+          # awaiting review, defer new work. New-work and post-merge events
+          # honour this; review events address the pending PR so they bypass
+          # it, and workflow_dispatch is an explicit operator override.
+          if [ "$should_run" = "true" ]; then
+            case "$EVENT_NAME" in
+              issues | issue_comment | pull_request)
+                pending=$(gh pr list --repo "$REPO" --state open --json headRefName \
+                  --jq '[.[] | select(.headRefName | startswith("claude/"))] | length' 2>/dev/null || echo 0)
+                if [ "${pending:-0}" -gt 0 ]; then
+                  should_run=false
+                  echo "deferring: ${pending} agent PR(s) pending review"
+                fi
+                ;;
+            esac
+          fi
           echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
           echo "gate: event=$EVENT_NAME sender=$SENDER should_run=$should_run"
 
@@ -178,6 +205,7 @@ jobs:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           REVIEW_BODY: ${{ github.event.review.body }}
           DISPATCH_PROMPT: ${{ github.event.inputs.prompt }}
@@ -214,6 +242,12 @@ jobs:
                 printf '%s\n' "$COMMENT_BODY"
                 echo "Read the full PR and its line comments: gh pr view ${PR_NUMBER} --comments"
                 ;;
+              pull_request)
+                echo "PR #${PR_NUMBER} (\"${PR_TITLE}\") just merged. Run the post-merge cycle, in order:"
+                echo "1. CEREMONIES: read CEREMONIES.md. With the merged PR number ${PR_NUMBER}, fire ceremony i iff ${PR_NUMBER} mod n_i == 0. EXCEPTION: if PR #${PR_NUMBER} was itself a ceremony PR, skip this step (do not recurse ceremonies) and go to step 2. If a ceremony is due, perform it and stop after opening its PR."
+                echo "2. Otherwise find the next work: open issues labelled claude-build in THIS repo are the inbox; dev-tools/queue is the cell's memory. Scope any unscoped claude-build issue into the queue, then claim the single highest-priority ready task, do it, and stop after opening its PR."
+                echo "3. If no ceremony is due AND there is no outstanding work (no open claude-build issues, no ready queue tasks), exit WITHOUT changes or a PR."
+                ;;
               workflow_dispatch)
                 echo 'Manual dispatch task:'
                 printf '%s\n' "$DISPATCH_PROMPT"
@@ -221,7 +255,7 @@ jobs:
             esac
             echo
             echo 'CI rules for this run:'
-            echo '- Do the work in this repo on the branch the workflow checked out. When your changes are ready, open a pull request against the default branch so the operator can review: commit and push your work if it is not already pushed, then run `gh pr create --fill`. Do NOT merge it yourself.'
+            echo '- Produce AT MOST ONE pull request from this run, then stop. For new work (an issue, a queue task, or a dispatched task): make your changes, commit/push, then run `gh pr create --fill` against the default branch. For review feedback on an existing PR: push your changes to THAT PR branch — do NOT open a new PR. If there is nothing to do, exit without changes. Never merge a PR yourself; the operator reviews.'
             echo '- Stay in scope. If you notice out-of-scope work, file a self-directed follow-up issue in THIS repo with the claude-build label rather than expanding scope. Put any operator-facing notes in CLAUDE_NOTES.md.'
             echo "- To file a feature request against another cell, discover cells with: gh search repos --owner ${OWNER} --topic colony-cell ; then file with: gh issue create --repo ${OWNER}/<cell> --label claude-build,from-cell --title '<title>' --body '<body>'. The ambient gh token is the colony bot, scoped across colony cells; issues you file appear authored by the bot, which is correct."
             echo '- You cannot create new cells. If the work seems to need a brand-new cell, do not scaffold one - describe the need in CLAUDE_NOTES.md for the operator (cells are spawned from the stem-cell template per REPRODUCTION.md).'
