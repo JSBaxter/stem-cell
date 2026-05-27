@@ -23,7 +23,11 @@ _exclude:
   - "{% if not include_bot_identity %}dev-tools/agent-bot{% endif %}"
   - "{% if not include_bot_identity %}dev-tools/agent-bot/**{% endif %}"
   - "{% if language != 'python' %}.pre-commit-config.yaml{% endif %}"
-  - "{% if language != 'python' %}.yamllint.yml{% endif %}"
+  # .yamllint.yml ships with any github_remote cell, not just python ones:
+  # non-python cells still get .github/workflows/cell-build.yml, and its
+  # lint (actionlint/yamllint, e.g. via a quality workflow) needs this
+  # config — without it yamllint falls back to strict 80-col defaults.
+  - "{% if not github_remote %}.yamllint.yml{% endif %}"
   # .github/ as a whole is only excluded when github_remote is off entirely.
   - "{% if not github_remote %}.github{% endif %}"
   - "{% if not github_remote %}.github/**{% endif %}"
