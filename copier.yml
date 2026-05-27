@@ -27,10 +27,12 @@ _exclude:
   # .github/ as a whole is only excluded when github_remote is off entirely.
   - "{% if not github_remote %}.github{% endif %}"
   - "{% if not github_remote %}.github/**{% endif %}"
-  # Python-specific CI lives under .github/workflows/; non-python cells get
-  # a .github/ directory (for CODEOWNERS at minimum) but no workflows.
-  - "{% if not (language == 'python' and github_remote) %}.github/workflows{% endif %}"
-  - "{% if not (language == 'python' and github_remote) %}.github/workflows/**{% endif %}"
+  # Any github_remote cell gets .github/workflows/ for the language-agnostic
+  # cell-build workflow. Only the python quality pipeline is gated on
+  # language — it's excluded (per-file) for non-python cells.
+  - "{% if not github_remote %}.github/workflows{% endif %}"
+  - "{% if not github_remote %}.github/workflows/**{% endif %}"
+  - "{% if not (language == 'python' and github_remote) %}.github/workflows/quality.yml{% endif %}"
   - "{% if license == 'none' %}LICENSE{% endif %}"
 
 _message_after_copy: |
@@ -150,6 +152,17 @@ operator_github_handle:
     .github/CODEOWNERS so PRs auto-request your review and the
     "review requested" notification fires on your phone.
   when: "{{ github_remote }}"
+
+colony_bot_login:
+  type: str
+  help: |
+    The colony bot App's GitHub login, e.g. 'my-colony-app[bot]'. Used in
+    the cell-build workflow allowlist so the bot (acting for other cells)
+    may trigger runs alongside the operator. Find it once via:
+      gh api /users/<app-slug>%5Bbot%5D --jq .login
+    Leave blank if this cell should only ever be triggered by the operator.
+  default: ""
+  when: "{{ github_remote and include_bot_identity }}"
 
 # ---------------------------------------------------------------------------
 # Licensing

@@ -90,14 +90,24 @@ In the browser, at <https://github.com/settings/apps>:
 2. Permissions:
    - `Contents`: read/write
    - `Pull requests`: read/write
+   - `Issues`: read/write
    - `Workflows`: read/write
    - `Metadata`: read-only
+
+   `Issues: read/write` is what lets the `cell-build` workflow file
+   feature-request issues against other cells in the colony. If you only
+   use the bot locally (no cross-cell filing) you can omit it, but the
+   shared-App colony pattern below assumes it.
 3. **Disable webhooks.**
 4. **Generate a private key** (download the `.pem`).
 
-### Phase 2 — install on this cell's repo
+### Phase 2 — install on the cell's repos
 
-In the browser, install the App on this cell's repository only.
+In the browser, install the App on this cell's repository. For the
+`cell-build` workflow's cross-cell issue filing to work, install the same
+App on **every** colony cell it should be able to reach — the workflow
+mints an owner-scoped installation token that covers all repos the App is
+installed on.
 
 ### Phase 3 — drop credentials in place
 
