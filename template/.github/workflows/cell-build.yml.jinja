@@ -34,6 +34,13 @@ permissions:
   pull-requests: write
   id-token: write
 
+# Serialize runs: the queue DB is a single shared file persisted on the
+# colony/queue-state branch, so only one run may touch it at a time. New
+# runs queue behind the in-flight one rather than racing it.
+concurrency:
+  group: cell-build
+  cancel-in-progress: false
+
 # Single source of truth for the allowlist: the two copier answers below.
 # Both the job-level `if:` and the "Verify sender" step derive from them.
 env:
@@ -119,6 +126,33 @@ jobs:
       - name: Checkout
         if: steps.gate.outputs.should_run == 'true'
         uses: actions/checkout@v4
+
+      - name: Install uv
+        # The queue MCP server runs via `uv run --directory dev-tools/queue`.
+        if: steps.gate.outputs.should_run == 'true'
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Restore queue state
+        # Pull the cell's persisted queue (its memory) from the state branch
+        # into a path OUTSIDE the workspace, so the action's git operations on
+        # the work branch can't disturb it. If the branch/file doesn't exist
+        # yet, the queue server creates a fresh DB at this path on first use.
+        if: steps.gate.outputs.should_run == 'true'
+        env:
+          QUEUE_DB: ${{ runner.temp }}/cell-queue.db
+        run: |
+          if git fetch --depth=1 origin colony/queue-state 2>/dev/null; then
+            if git show FETCH_HEAD:queue.db > "$QUEUE_DB" 2>/dev/null; then
+              echo "restored queue.db ($(wc -c < "$QUEUE_DB") bytes)"
+            else
+              echo "state branch exists but has no queue.db; starting fresh"
+              rm -f "$QUEUE_DB"
+            fi
+          else
+            echo "no colony/queue-state branch yet; queue starts fresh"
+          fi
 
       - name: Cache build deps
         if: steps.gate.outputs.should_run == 'true'
@@ -209,8 +243,66 @@ jobs:
           direct_prompt: ${{ steps.prompt.outputs.text }}
           branch_prefix: "claude/"
           timeout_minutes: "55"
-          allowed_tools: "Bash,Edit,MultiEdit,Write,Read,Glob,Grep"
+          allowed_tools: "Bash,Edit,MultiEdit,Write,Read,Glob,Grep,mcp__queue"
+          # Enable the queue MCP server (the cell's memory) with its DB at the
+          # out-of-workspace path we restored above. A checked-out .mcp.json
+          # isn't auto-trusted in non-interactive CI, so pass it explicitly.
+          mcp_config: |
+            {
+              "mcpServers": {
+                "queue": {
+                  "command": "uv",
+                  "args": [
+                    "run", "--directory", "dev-tools/queue",
+                    "python", "server.py",
+                    "--db", "${{ runner.temp }}/cell-queue.db",
+                    "--transport", "stdio"
+                  ]
+                }
+              }
+            }
           # Expose the colony token to Claude's shell for cross-cell gh calls.
           claude_env: |
             GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Persist queue state
+        # Save the (possibly updated) queue back to the state branch so the
+        # next run inherits the cell's memory. Runs even if Claude failed, so
+        # partial progress isn't lost. `concurrency` above prevents races.
+        if: always() && steps.gate.outputs.should_run == 'true'
+        env:
+          QUEUE_DB: ${{ runner.temp }}/cell-queue.db
+          PUSH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ ! -f "$QUEUE_DB" ]; then
+            echo "no queue db produced; nothing to persist"
+            exit 0
+          fi
+          # Fold any WAL back into the single file (no-op in default journal
+          # mode) so we persist exactly one small file.
+          if command -v sqlite3 >/dev/null 2>&1; then
+            sqlite3 "$QUEUE_DB" "PRAGMA wal_checkpoint(TRUNCATE);" || true
+          fi
+          work="$(mktemp -d)"
+          url="https://x-access-token:${PUSH_TOKEN}@github.com/${REPO}.git"
+          if git clone --depth 1 --branch colony/queue-state "$url" "$work" 2>/dev/null; then
+            cp "$QUEUE_DB" "$work/queue.db"
+          else
+            git clone --depth 1 "$url" "$work"
+            git -C "$work" checkout --orphan colony/queue-state
+            git -C "$work" rm -rf . >/dev/null 2>&1 || true
+            cp "$QUEUE_DB" "$work/queue.db"
+          fi
+          git -C "$work" config user.name "colony-bot"
+          git -C "$work" config user.email "colony-bot@users.noreply.github.com"
+          git -C "$work" add queue.db
+          if git -C "$work" diff --cached --quiet; then
+            echo "queue unchanged; nothing to persist"
+          else
+            git -C "$work" commit -q -m "chore(queue): persist state from run ${RUN_ID}"
+            git -C "$work" push -q origin colony/queue-state
+            echo "persisted queue.db to colony/queue-state"
+          fi
 {% endraw %}
