@@ -119,15 +119,18 @@ jobs:
               fi
               ;;
           esac
-          # One PR in flight: if an agent PR (head claude/*) is already open
-          # awaiting review, defer new work. New-work and post-merge events
-          # honour this; review events address the pending PR so they bypass
-          # it, and workflow_dispatch is an explicit operator override.
+          # One PR in flight: if an agent-authored PR is already open awaiting
+          # review, defer new work. Detect by AUTHOR (the colony bot, or
+          # github-actions[bot] when no bot identity is configured) — Claude
+          # names its branches conventionally, so a branch-prefix check misses
+          # them. New-work and post-merge events honour this; review events
+          # address the pending PR so they bypass it, and workflow_dispatch is
+          # an explicit operator override.
           if [ "$should_run" = "true" ]; then
             case "$EVENT_NAME" in
               issues | issue_comment | pull_request)
-                pending=$(gh pr list --repo "$REPO" --state open --json headRefName \
-                  --jq '[.[] | select(.headRefName | startswith("claude/"))] | length' 2>/dev/null || echo 0)
+                pending=$(gh pr list --repo "$REPO" --state open --json author \
+                  --jq '[.[] | select(.author.login == env.BOT_LOGIN or .author.login == "github-actions[bot]")] | length' 2>/dev/null || echo 0)
                 if [ "${pending:-0}" -gt 0 ]; then
                   should_run=false
                   echo "deferring: ${pending} agent PR(s) pending review"
