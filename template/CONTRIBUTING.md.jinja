@@ -325,6 +325,13 @@ fine-grained PAT with `secrets:write` for OAuth refresh), and
 `contents:write`, and `pull-requests:write`, and be installed on every
 cell it should reach.
 
+The workflow runs the queue (the cell's memory) and persists its SQLite DB
+between runs on an orphan **`colony/queue-state`** branch — the bot commits
+`queue.db` there at the end of each run and restores it at the start. That
+branch holds only the DB; don't merge it into `main`. Runs are serialized
+(`concurrency`) so they never race on it. Note this is a CI-side queue,
+separate from any local queue on the operator's workstation.
+
 ---
 
 {% endif %}
