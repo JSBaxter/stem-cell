@@ -14,7 +14,7 @@ name: cell-build
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [labeled]
   issue_comment:
     types: [created]
   pull_request_review:
@@ -57,7 +57,9 @@ jobs:
     if: {{ _allow }}
 {% raw %}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Wall-clock backstop (the real bound, since --max-turns is set high): a
+    # stuck/looping run can't burn more than this. Bump if real tasks need it.
+    timeout-minutes: 120
     steps:
       - name: Verify sender is authorized
         # Defense in depth: if the `if:` above is ever widened by mistake,
@@ -280,10 +282,12 @@ jobs:
           branch_prefix: "claude/"
           # v1 takes CLI flags via claude_args. Enable the queue MCP server (the
           # cell's memory) pointed at the out-of-workspace DB we restored above,
-          # allow the tools Claude needs, and cap turns. The MCP server name
-          # "queue" must match the mcp__queue allow-list entry.
+          # allow the tools Claude needs. --max-turns is set high (effectively
+          # unlimited) so real, multi-step feature work can finish in one run;
+          # the job timeout-minutes above is the real backstop, not turns. The
+          # MCP server name "queue" must match the mcp__queue allow-list entry.
           claude_args: |
-            --max-turns 30
+            --max-turns 200
             --mcp-config '{"mcpServers":{"queue":{"type":"stdio","command":"uv","args":["run","--directory","${{ github.workspace }}/dev-tools/queue","python","server.py","--db","${{ runner.temp }}/cell-queue.db","--transport","stdio"]}}}'
             --allowedTools "Bash,Edit,MultiEdit,Write,Read,Glob,Grep,mcp__queue"
 
