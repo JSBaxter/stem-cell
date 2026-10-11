@@ -6,73 +6,53 @@ _envops:
   lstrip_blocks: true
   keep_trailing_newline: true
 
-_exclude:
-  - "*.pyc"
-  - "__pycache__"
-  - ".venv"
-  - ".pytest_cache"
-  - ".mypy_cache"
-  - ".ruff_cache"
-  - "queue.db"
-  - "queue.db-*"
-  # Conditional excludes — empty pattern means "exclude nothing".
-  # Each gated dir gets two patterns: the dir itself (so empty stub
-  # dirs aren't created) AND its contents glob.
-  - "{% if not include_agent_container %}dev-tools/agent-container{% endif %}"
-  - "{% if not include_agent_container %}dev-tools/agent-container/**{% endif %}"
-  - "{% if not include_bot_identity %}dev-tools/agent-bot{% endif %}"
-  - "{% if not include_bot_identity %}dev-tools/agent-bot/**{% endif %}"
-  - "{% if language != 'python' %}.pre-commit-config.yaml{% endif %}"
-  # .yamllint.yml ships with any github_remote cell, not just python ones:
-  # non-python cells still get .github/workflows/cell-build.yml, and its
-  # lint (actionlint/yamllint, e.g. via a quality workflow) needs this
-  # config — without it yamllint falls back to strict 80-col defaults.
-  - "{% if not github_remote %}.yamllint.yml{% endif %}"
-  # .github/ as a whole is only excluded when github_remote is off entirely.
-  - "{% if not github_remote %}.github{% endif %}"
-  - "{% if not github_remote %}.github/**{% endif %}"
-  # Any github_remote cell gets .github/workflows/ for the language-agnostic
-  # cell-build workflow. Only the python quality pipeline is gated on
-  # language — it's excluded (per-file) for non-python cells.
-  - "{% if not github_remote %}.github/workflows{% endif %}"
-  - "{% if not github_remote %}.github/workflows/**{% endif %}"
-  - "{% if not (language == 'python' and github_remote) %}.github/workflows/quality.yml{% endif %}"
-  - "{% if license == 'none' %}LICENSE{% endif %}"
+# Cell-owned after birth (spec "Owned files"): copier renders these once and
+# never overwrites them on `copier update`. A change to their shape in the
+# template is described in CHANGES.md (quoted into the sync PR body), not
+# applied.
+_skip_if_exists:
+  - thresholds.yml
+  - CLAUDE.md
+  - README.md
+  - .gitignore
+  - specs/**
+  - docs/adr/**
 
 _message_after_copy: |
-  Cell scaffolded.
+  Cell rendered.
 
-  Next steps inside the new cell:
+  Inside the new cell:
 
     git init && git add -A && git commit -m "chore(repo): initial cell from stem-cell"
 
-  If language=python, the queue is ready to run:
+  Create the GitHub repository and push. Then run the harness initialisation
+  from a local session (harness specs/project-creation.md; it needs repo
+  settings and secrets that a cloud session cannot write). It applies the
+  branch ruleset and the OAuth secret, creates every state:, route:, source:
+  and priority: label through cellq, and opens the first issue, "write the
+  first spec", via `cellq idea`.
 
-    uv sync --directory dev-tools/queue
-    uv run --directory dev-tools/queue pytest
-
-  Read MANIFESTO.md, then CONTRIBUTING.md. REPRODUCTION.md describes how
-  this cell was born and how to spawn a sibling.
+  A cell that chooses a language runs the harness setup skill for it (for
+  example python-setup) as its first task.
 
 _message_after_update: |
-  Cell updated from stem-cell.
+  Cell synced from stem-cell.
 
-  Re-run the queue tests if dev-tools/queue/ changed:
-
-    uv run --directory dev-tools/queue pytest
-
-  Review the diff before committing — copier may have touched files you
-  edit by hand.
+  The sync touched template-owned files only. Cell-owned files
+  (thresholds.yml, CLAUDE.md, README.md, .gitignore, specs/, docs/adr/)
+  were skipped. Read the "## Shape notes" section of the sync PR, or
+  CHANGES.md in stem-cell, for template changes to owned files and apply
+  them by hand if they matter to this cell.
 
 # ---------------------------------------------------------------------------
-# Cell identity
+# Questions. Exactly these four; no other.
 # ---------------------------------------------------------------------------
 
 project_name:
   type: str
   help: |
     Cell name (kebab-case, lowercase, alphanumeric + hyphens).
-    Used for the directory, the MCP server name, and the Python package.
+    Used for the directory, README and the spec slug.
   validator: >-
     {% if not (project_name | regex_search('^[a-z][a-z0-9-]*$')) %}
     project_name must start with a lowercase letter and contain only
@@ -82,113 +62,26 @@ project_name:
 project_purpose:
   type: str
   help: |
-    One sentence: what does this cell exist to do? Seeds MANIFESTO.md.
+    One line: what does this cell exist to do?
+    Used in README, CLAUDE.md and the spec stub's Purpose.
   multiline: false
-
-project_description:
-  type: str
-  help: |
-    Longer description (a paragraph or two) of why this cell exists,
-    what problem it solves, and what's out of scope. Optional.
-  multiline: true
-  default: ""
-
-# ---------------------------------------------------------------------------
-# Operator
-# ---------------------------------------------------------------------------
-
-operator_name:
-  type: str
-  help: "Operator name (commits, doc attribution)"
-
-operator_email:
-  type: str
-  help: "Operator email"
-
-# ---------------------------------------------------------------------------
-# Toolchain
-# ---------------------------------------------------------------------------
-
-language:
-  type: str
-  help: |
-    Primary language for the cell. 'python' wires up uv + ruff + pytest +
-    pre-commit. 'none' leaves the cell language-agnostic; the queue still
-    runs (it brings its own uv project).
-  choices:
-    - python
-    - none
-  default: python
-
-# ---------------------------------------------------------------------------
-# Optional cell capabilities
-# ---------------------------------------------------------------------------
-
-include_agent_container:
-  type: bool
-  help: |
-    Include dev-tools/agent-container/ — a Docker image for running the
-    agent (Claude Code) with full in-container autonomy and bounded blast
-    radius. Pairs well with include_bot_identity.
-  default: false
-
-include_bot_identity:
-  type: bool
-  help: |
-    Include dev-tools/agent-bot/ — wrappers (mint-token.sh, as-bot.sh) for
-    a separate GitHub App bot identity, so the operator can be a real
-    reviewer on the agent's PRs. Requires creating the App externally
-    (see dev-tools/agent-bot/README.md). Default true; turn off if
-    you're sure you'll never use a bot identity for this cell.
-  default: true
-
-github_remote:
-  type: bool
-  help: |
-    Cell will be pushed to GitHub? Enables the PR-based workflow rules in
-    CONTRIBUTING and the GH Actions quality skeleton.
-  default: true
 
 operator_github_handle:
   type: str
   help: |
-    Your GitHub username (the @handle, e.g. JSBaxter). Used to populate
-    .github/CODEOWNERS so PRs auto-request your review and the
-    "review requested" notification fires on your phone.
-  when: "{{ github_remote }}"
+    Your GitHub username (the @handle). Used in .github/CODEOWNERS so every
+    PR auto-requests your review.
+  default: JSBaxter
 
-colony_bot_login:
+harness_ref:
   type: str
   help: |
-    The colony bot App's GitHub login, e.g. 'my-colony-app[bot]'. Used in
-    the cell-build workflow allowlist so the bot (acting for other cells)
-    may trigger runs alongside the operator. Find it once via:
-      gh api /users/<app-slug>%5Bbot%5D --jq .login
-    Leave blank if this cell should only ever be triggered by the operator.
-  default: ""
-  when: "{{ github_remote and include_bot_identity }}"
-
-# ---------------------------------------------------------------------------
-# Licensing
-# ---------------------------------------------------------------------------
-
-license:
-  type: str
-  help: "License for the cell"
-  choices:
-    - MIT
-    - Apache-2.0
-    - none
-  default: MIT
-
-copyright_holder:
-  type: str
-  help: "Copyright holder for the LICENSE file"
-  default: "{{ operator_name }}"
-  when: "{{ license != 'none' }}"
-
-copyright_year:
-  type: int
-  help: "Copyright year"
-  default: 2026
-  when: "{{ license != 'none' }}"
+    The JSBaxter/harness commit the workflow stubs pin to, rendered as
+    `@<sha> # main`. The default is the harness main head recorded in the
+    template; Renovate bumps it. A 40-hex commit SHA.
+  default: 62804dc43a2dc1ed407d493a658c7328e528c1f6
+  validator: >-
+    {% if not (harness_ref | regex_search('^[0-9a-f]{40}$')) %}
+    harness_ref must be a 40-character lowercase hex commit SHA of
+    JSBaxter/harness.
+    {% endif %}
