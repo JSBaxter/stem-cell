@@ -1,244 +1,368 @@
-# Proposal: the next iteration of the agent harness
+# Proposal: agent harness, iteration 2
 
-Written 2026-10-11. For James to review and decide. Needs no memory of the
-earlier projects; everything relevant is restated here. Merging this PR means
-"build this, in the phases listed, decisions as marked".
+Date: 2026-10-11
+Status: for review. Merging this PR approves the design, the decisions in
+section 8 as marked, and the phases in section 9.
+Audience: James, and any agent implementing a phase. No prior knowledge of
+the earlier projects is assumed.
 
-## 1. What we are trying to build
+## 1. Summary
 
-A way of running software projects where agents do the implementation and
-James does the steering and the approving, on a Claude Max subscription with
-no API billing, that still works after James has ignored it for three
-months. The last clause is the hard one and the one both previous attempts
-underweighted.
+- A template creates repositories that agents can operate. Each repository
+  contains its rules, its current state, its specifications, its decisions,
+  and the wiring for review and data capture.
+- A plugin provides the procedures agents follow. Procedures are not copied
+  into repositories.
+- GitHub Issues is the only task queue.
+- A human approves work by merging a pull request. There is no other
+  approval step.
+- Every surface that runs an agent writes a record of what it used (model,
+  tokens, cost estimate, duration, attribution) to the repository it worked
+  in. Nothing is lost if no server is listening.
+- Recurring maintenance (grooming, state check, structural review, retro)
+  is triggered by merge count and executed by whichever agent or person
+  picks up the resulting issue.
 
-## 2. The two previous attempts, in one paragraph each
+## 2. Goal and constraints
 
-**stem-cell (May 2026).** A copier template (a folder of files with placeholders; copier asks a few questions and writes out a real repo) that stamped out "cells": one
-repo, one purpose, each with nine process documents (manifesto,
-contributing, testing, state, ceremonies, reproduction, changelog, two agent
-entrypoints), a SQLite task queue vendored into the repo as an MCP server, a
-GitHub Actions workflow that ran Claude *inside CI* to do the work, an
-optional bot identity so agent PRs had a separate author, and a modulo rule
-that fired "ceremonies" (grooming, health check, structural review, retro)
-every N merged PRs. Four cells were built in three weeks and then work took
-over. The good ideas: `copier update` pushes template fixes into every cell
-as a reviewable diff; `STATE.md` as operational truth; the ceremony cadence;
-the one-repo-one-purpose boundary. The problems: too much machinery per
-repo, a queue that duplicated GitHub Issues, implementation running in
-Actions where it is slow and opaque, and nothing that helped re-entry.
+Goal: run software projects where agents implement and a person steers and
+approves, with the person able to leave for months and return without
+reconstructing what happened.
 
-**harness (August to September 2026).** A Claude Code plugin carrying skills
-(spec, split-spec, dispatch, ship, adr) and a reusable GitHub Actions review
-gate, plus a copy-once project template. It ran a real project,
-chord-recommender, to roughly sixty merged PRs and sixteen architecture
-decision records in twelve days, with cloud sessions and self-rearming
-overnight routines stewarding PRs against the gate. The good ideas: the spec
-PR as the only human gate; ADRs; a fresh-context reviewer as a required
-check; one issue = one PR under ten minutes to review; "proposal" PRs that
-skip the agent reviewer; the steward posture that stops agents grinding on
-advisory findings. The problems: no update path (every fix to the harness
-had to be hand-copied into each project; chord-recommender has a 100-line
-hook doing exactly that for cloud sessions); the roadmap file went stale
-within weeks while reality moved on; two spec deltas were never folded back
-after shipping; the sizing rule lived in an agent's head; nothing measured
-cost, review rounds, or James's time; and the harness repo gates every
-project's PRs but not its own.
+Constraints:
 
-**What the research added (October 2026).** A literature review of the
-public spec-driven frameworks found: spec completeness predicts outcomes
-more than framework choice; specs pay off on multi-session, multi-file work
-and are overhead on small changes; drift after implementation is universal
-and the two leading tools both added a "converge" step this year; context
-bloat is the hidden cost and the fix is moving reusable guidance into
-skills. No one has data on a living spec over months, which is our whole bet.
+| Constraint | Reason |
+|---|---|
+| No API billing. Everything runs on a Claude Max subscription. | Cost control. Rules out tools that need an API key. |
+| Every merge is made by James. | Quality control and accountability. |
+| Works on any machine from one install. | James moves between machines. |
+| Survives neglect. | Returns are intermittent. State must be in the repositories, not in anyone's memory. |
 
-## 3. The design
+## 3. Background
 
-Six rules. Each one answers a failure above.
+Two earlier attempts exist. This iteration keeps parts of each.
 
-**R1. One template produces everything a repo needs, and copier is the only
-way changes reach it.** No copy-once template, no hand-vendoring. A fix made
-in the template lands in every repo as a PR via `copier update`. *(Fixes:
-harness's no-update-path; stem-cell already did this, we keep it.)*
+### 3.1 stem-cell, May 2026
 
-**R2. GitHub Issues is the one queue.** No vendored task store. An issue is
-scoped, routed, claimed by assignment, and closed by its PR. Requests
-between repos are an issue template with required fields, which is how
-tightly repos are coupled: change the fields, change the coupling.
-*(Fixes: stem-cell's duplicate queue; keeps its "coupling knob" idea.)*
+A copier template. Copier is a tool that takes a folder of files with
+placeholders, asks the user a few questions, and writes out a complete
+repository. Later, `copier update` re-applies template changes to a
+repository that was created from it, as a diff.
 
-**R3. Procedure lives in the plugin, contract lives in the repo, nothing in
-both.** Skills say *how* (spec, plan, split, ship, review, ceremony,
-converge). The repo says *what is true here* (purpose, rules, state,
-specs, decisions). A repo's agent entrypoint is short and points at skills.
-*(Fixes: context bloat; stem-cell's nine-document spine shrinks to five.)*
-
-**R4. The human gate is one action: merge.** Specs, decisions, proposals and
-code all route through a PR that James merges. Nothing else asks for
-approval. Agents never merge. *(Keeps harness's proven gate; removes
-stem-cell's bot identity by default because the author of a PR does not
-matter when the merger is always James.)*
-
-**R5. Telemetry is part of the repo, on every surface, from the first
-commit.** A repo created from the template carries its own export configuration: local
-sessions, cloud sessions, routines and the Actions gate all send token,
-model, cost, duration and attribution events to one collector, tagged with
-the repo and the experiment. The collector endpoint and its credential are
-template answers, not something each machine remembers to set. No telemetry
-is a bug, not a default. *(Fixes: harness measured nothing; the first draft
-of this proposal left it to per-machine settings, which is the same
-mistake.)*
-
-**R6. The process reads its own telemetry and adjusts on a cadence.** The
-retro ceremony reads the collector output plus review rounds per PR and PR
-sizes, and proposes threshold changes as a PR. Deterministic triggers, agent
-judgement inside, human merge. *(Fixes: stem-cell's ceremonies had no
-trigger that fired without someone remembering, and no data to act on.)*
-
-### 3.1 What a repo created from the template contains
-
-| Path | Role | From |
+| Kept | Dropped | Why dropped |
 |---|---|---|
-| `README.md` | purpose, one paragraph, and the directory map | stem-cell manifesto, shortened |
-| `CONTRIBUTING.md` | the rules: branch, commits, one issue one PR, routing rule, labels | both, merged, one copy |
-| `STATE.md` | operational truth: what is running, where, depends on | stem-cell |
-| `CEREMONIES.md` | the catalogue, cadence, and inputs for each ceremony | stem-cell, revised |
-| `CLAUDE.md`, `AGENTS.md` | ten lines: read CONTRIBUTING, STATE, the spec; run skills for everything else | harness, cut down |
-| `specs/` | living specs with pending deltas; one stub seeded at spawn | harness |
-| `docs/adr/` | decisions, MADR format | harness |
-| `.claude/settings.json` | plugin marketplace pointer, hooks, and the telemetry settings: exporter on, collector address and tags from template answers | harness, plus new |
-| `.github/workflows/*.yml` env | the same telemetry variables on the gate and ceremony jobs; the credential from a repo secret | new |
-| `STATE.md` telemetry section | where this repo's telemetry goes and how to query it | new |
-| `.claude/hooks/` | session-start (installs deps, copies the plugin in for cloud sessions), PreToolUse guards | harness, generated from the template rather than copied by hand |
-| `.github/workflows/claude-review.yml`, `claude-fix.yml` | caller stubs for the harness's reusable gate, pinned by a template answer | harness |
-| `.github/workflows/ceremonies.yml` | on merged PR: count, modulo, open a `ceremony` issue | new |
-| `.github/ISSUE_TEMPLATE/feature-request.yml` | the cross-repo coupling contract | new, from stem-cell's queue verb |
-| `.copier-answers.yml` | which template version this repo is | stem-cell |
+| `copier update` as the way template changes reach every repository | A task queue (SQLite, exposed as an MCP server) copied into every repository | Duplicated GitHub Issues. Two task stores diverge. |
+| `STATE.md`: a file recording what the repository currently runs and depends on | A GitHub Actions workflow that ran Claude inside CI to implement work | Slow, opaque, and consumed subscription quota in a place with no human nearby. |
+| The ceremony cadence: maintenance activities that fire every N merged PRs | A separate bot identity for agent PRs, on by default | Only useful if someone other than James needs to see agent PRs as separately authored. |
+| One repository, one purpose | Nine process documents per repository | Agents spend context reading them. Most content belongs in procedures, not in each repository. |
 
-Gone from stem-cell: the queue, Claude running inside CI, the testing and reproduction
-documents (their content moves into CONTRIBUTING and the template README),
-the changelog (git and ADRs hold history), bot identity by default.
+### 3.2 harness, August to September 2026
 
-### 3.2 What the plugin contains
+A Claude Code plugin (skills, agents, hooks) and a reusable GitHub Actions
+workflow that reviews every PR with an agent. It ran one project,
+chord-recommender, to about sixty merged PRs in twelve days.
 
-Existing and kept: spec, plan, split-spec, dispatch, ship, adr, the
-reviewer agent, the steward skill, the push and identity guards.
-
-New:
-
-- **scope**: applied when an issue is picked up. Routes it: under six files
-  and one session, plan mode then a PR; otherwise `/spec`. Writes the route
-  on the issue. The thresholds are read from CONTRIBUTING so retro can
-  change them.
-- **converge**: after a PR merges against a spec delta, a fresh-context
-  check of the merged diff against the delta's acceptance criteria; folds
-  the delta into the spec body or files an issue saying why not. *(Fixes:
-  the two unfolded deltas.)*
-- **ceremony**: the procedures for grooming (route unrouted issues, ask
-  whether any spec with piled-up deltas should split), health check
-  (STATE and specs against reality; fold or delete stale text), structural
-  review, retro (read telemetry and PR data, propose threshold changes as a
-  PR to CONTRIBUTING).
-- **queue verbs**: idea, scope, claim, complete, request-feature, as a thin
-  layer over Issues and Projects so an agent's interface is stable if the
-  backend changes.
-
-### 3.2a Telemetry, concretely
-
-Claude Code already emits an `api_request` event per model call with
-tokens, estimated cost, duration, model, effort, and attribution to skill,
-plugin, agent and repository, over standard OpenTelemetry. The work is to
-make sure every surface sends it somewhere that persists.
-
-| Surface | How the config arrives | Endpoint it needs |
+| Kept | Dropped or changed | Why |
 |---|---|---|
-| Local session | the repo's `.claude/settings.json`, written by the template | any reachable collector; the one on this laptop today, or the shared one |
-| Cloud session, routine | the cloud environment's env vars, set once per environment; the repo's settings block applies too | an endpoint reachable from Anthropic's network |
-| Actions gate, ceremonies | `env:` on the job, credential from `OTEL_EXPORTER_OTLP_HEADERS` repo secret | same |
+| Specification PR as the single approval point | A copy-once project template | No way to deliver fixes to repositories already created. |
+| Architecture decision records | A hook in each repository that copies the plugin into place for cloud sessions | Hand-maintained in each repository. Replaced by the template writing it. |
+| A fresh-context reviewer agent as a required status check | A roadmap file as the record of progress | It went stale within weeks. Progress is recorded in the notes repository instead. |
+| One issue, one PR, reviewable in under ten minutes | Sizing decided by whichever agent picked up the work | Replaced by a written routing rule. |
+| The `proposal` label: PRs that ask an opinion skip the agent reviewer | No capture of usage, cost, review rounds, or time at the gate | Replaced by section 6. |
+| Steward posture: how an agent behaves when watching a PR | The harness repository's own PRs not being reviewed | Phase 1 adds the gate to the harness. |
+| Cloud sessions and self-rearming routines for overnight work | | |
 
-So the collector has to be reachable from outside this laptop from phase
-one, not "later". Scrappy first version: the existing collector on this
-machine exposed through Tailscale Funnel with a bearer-token auth
-extension, so the sink is not open. Known cost: events sent while the laptop
-is off are dropped, which is when routines run. The gap is measurable
-(session counts on claude.ai versus events received) and is the trigger for
-moving the collector to a small always-on box. The file sink is the archive
-either way; a dashboard or hosted backend reads from it later.
+### 3.3 Research, October 2026
 
-Questions the template asks at creation: `telemetry_endpoint` (default the
-Funnel URL once it exists; `http://127.0.0.1:4318` until then) and `experiment` (optional tag
-for the resource attributes). Repo secret: the bearer token. STATE.md records
-all three so an agent in the repo can answer "where does my telemetry go".
+A review of published spec-driven development frameworks found:
 
-### 3.3 Where work runs
+- Spec completeness (acceptance criteria, non-goals, constraints, open
+  questions) predicted outcomes more than framework choice.
+- Specs paid off on work spanning several sessions or several files, and
+  added overhead on small changes.
+- Specs drift from code after implementation starts. Two leading tools
+  added a step that checks the implementation against the spec and
+  updates the spec.
+- Project context accumulating in instruction files degrades output.
+  Moving reusable guidance into skills reduced it.
 
-Local sessions are primary. Cloud sessions and routines steward PRs,
-execute ceremony issues, and do work James starts from a phone. Actions runs
-only the review gate and the ceremony trigger. Nothing implements in
-Actions. *(This is the harness decision; stem-cell had it the other way
-round and it was the single most expensive part of that design.)*
+## 4. Design overview
 
-## 4. What is genuinely new
+```mermaid
+C4Container
+    title Agent harness, iteration 2
 
-Not in either previous attempt: the update path carrying the gate and hooks
-(R1 applied to R4); issues with a coupling contract (R2); the scope skill and
-its written thresholds; the converge skill; the ceremony trigger as a
-stateless Action; telemetry created from the template into every repo and exported from
-every surface (R5); the retro reading it (R6); the harness gating its own
-PRs; hooks written by the template instead of a hook that copies a plugin in.
+    Person(james, "James", "Steers, reviews, merges")
 
-## 5. Decisions James needs to make
+    System_Boundary(github, "GitHub") {
+        Container(template, "Template repository (stem-cell)", "copier", "Creates and updates project repositories")
+        Container(harness, "Harness repository", "Claude Code plugin + reusable workflows", "Procedures: skills, agents, hooks, review gate")
+        Container(project, "Project repository", "git", "Rules, STATE.md, specs, ADRs, issues, usage branch")
+    }
 
-Marked with my recommendation. Change any of them in the PR review.
+    System_Boundary(surfaces, "Where agents run") {
+        Container(local, "Local session", "Claude Code CLI", "Primary place work is done")
+        Container(cloud, "Cloud session / routine", "claude.ai/code", "Stewarding PRs, ceremonies, work started from a phone")
+        Container(actions, "GitHub Actions", "review gate, ceremony trigger", "No implementation work")
+    }
 
-- **D1. Where the template lives.** Recommend: stem-cell, in place. It has
-  the copier machinery and the history. Alternative: a new repo named for
-  what it is, e.g. `cell`, with stem-cell archived. Either is fine; in-place
-  is less work.
-- **D2. Bot identity.** Recommend: off by default, available as an option.
-  Only matters if someone other than James ever needs to see agent PRs as
-  separately authored.
-- **D3. Ceremony executor.** Recommend: a ceremony issue is picked up by
-  whoever is around: a routine if one is watching, else James's next local
-  session. No default executor is wired in phase one.
-- **D4. Pinning.** Recommend: skills follow the marketplace unpinned; the
-  gate workflows are pinned to a tag chosen when the repo is created. This is the
-  harness's existing decision applied to cells.
-- **D5. First proving project.** Recommend: the AWS research-compute repo
-  for the startup. It needs a spec anyway and has real consequences.
-- **D6. Collector placement.** Recommend: this laptop behind Tailscale
-  Funnel for phase one, measured gap, then a small always-on box if the gap
-  matters. Alternative: an always-on box from day one. The difference is a
-  few pounds a month against a week of uncertainty.
+    Container(notes, "Notes repository", "markdown + python", "Experiment log; aggregates usage across projects")
 
-## 6. Phases
+    Rel(template, project, "creates; copier update delivers changes as PRs")
+    Rel(harness, local, "plugin installed from marketplace")
+    Rel(harness, cloud, "plugin copied in by session-start hook")
+    Rel(harness, actions, "reusable workflows called by stubs in project")
+    Rel(local, project, "branches, PRs, usage records")
+    Rel(cloud, project, "branches, PRs, usage records")
+    Rel(actions, project, "status checks, ceremony issues, usage records")
+    Rel(james, project, "merges PRs")
+    Rel(notes, project, "reads usage branch")
+```
 
-Each phase is one or a few PRs, and each leaves something usable.
+Three repositories have fixed roles:
 
-1. **Minimum cell.** The template produces everything in the table in 3.1
-   except ceremonies and the issue template, telemetry included. The collector is reachable from
-   outside this machine. Spawn the proving project from it. Exit: a PR in
-   that repo is gated and merges, and the gate run, the local session that
-   wrote it, and a cloud session on the same repo all appear in the
-   collector attributed to that repo.
-2. **Issues as the queue.** Labels, the feature-request template, CONTRIBUTING
-   rewritten for issues, the scope skill. Exit: an issue routed, built,
-   merged, closed by its PR.
-3. **Cadence.** The ceremonies Action and the ceremony skill. Exit: the fifth
-   merge opens a grooming issue and an agent completes it.
-4. **Closing the loop.** converge, retro reading telemetry. Exit: a delta
-   folded automatically; a retro PR proposing a threshold change.
-5. **Update path proven.** `copier update` on one of the May cells
-   (cytometer) with a clean diff. Exit: the diff merges.
+| Repository | Holds | Changes reach projects by |
+|---|---|---|
+| Template (stem-cell) | Files every project starts with | `copier update`, producing a PR in each project |
+| Harness | Skills, agents, hooks, reusable workflows | Plugin marketplace (local), session-start hook (cloud), workflow reference (Actions) |
+| Project | Everything specific to one piece of software | n/a |
 
-Not in scope: the cross-repo coordination layer from May (atlas, morphogen),
-until more than three repos are live and coordination is the bottleneck.
+## 5. Components
 
-## 7. How we will know it worked
+### 5.1 What a project repository contains
 
-Six months from now, James returns after a gap. He reads STATE.md and the
-spec of one repo and knows where it is. Ceremony issues from the gap are
-waiting, not forgotten. A template fix he makes reaches every repo as PRs he
-can merge from his phone. The retro has changed a threshold at least once
-based on data. The telemetry shows what the whole thing cost.
+| Path | Purpose | Origin |
+|---|---|---|
+| `README.md` | Purpose in one paragraph; directory map | Template |
+| `CONTRIBUTING.md` | Rules: branches, commit format, one issue per PR, labels, the routing rule in 5.6, the usage-data location in section 6 | Template |
+| `STATE.md` | What is running, where, and what it depends on. Updated in the same PR as any change to those facts | Template (from stem-cell) |
+| `CEREMONIES.md` | The maintenance catalogue: name, period, inputs, outputs | Template (from stem-cell, revised) |
+| `CLAUDE.md`, `AGENTS.md` | Agent entry points. Short: read CONTRIBUTING, STATE and the spec; use skills for procedures | Template |
+| `specs/` | Living specifications. One stub created at project creation, seeded from the purpose | Template (from harness) |
+| `docs/adr/` | Architecture decision records | Template (from harness) |
+| `.claude/settings.json` | Plugin marketplace pointer; hook registrations | Template |
+| `.claude/hooks/session-start.sh` | Installs dependencies; in cloud sessions, copies the plugin in because marketplaces do not install there | Template, from harness source |
+| `.claude/hooks/pretooluse.sh` | Guards: no push to main, identity check | Template, from harness source |
+| `.claude/hooks/session-end.sh` | Writes the session's usage record (section 6) | Template, new |
+| `.github/workflows/claude-review.yml`, `claude-fix.yml` | Call the harness's reusable review and fix workflows. Pinned to a harness tag chosen at creation | Template (from harness) |
+| `.github/workflows/ceremonies.yml` | On each merged PR: count merges, apply the modulo rule, open ceremony issues (5.5) | Template, new |
+| `.github/ISSUE_TEMPLATE/feature-request.yml` | Request from another repository. Required fields define what one repository must tell another | Template, new |
+| `.copier-answers.yml` | Which template version this repository was created from | Copier |
+| Branch `usage` | Usage records, one file per session or job (section 6) | Written by hooks and workflows |
+
+Not included, by decision: a task queue, a workflow that implements work in
+CI, a bot identity (available as an option), a manifesto, a changelog, a
+separate testing document (content moves into CONTRIBUTING).
+
+### 5.2 What the plugin contains
+
+| Skill or agent | Status | Purpose |
+|---|---|---|
+| `spec` | Existing | Create or update a living spec; open it as a `proposal` PR |
+| `plan` | Existing | Decide technical approach between spec and task breakdown |
+| `split-spec` | Existing | Break a spec into issues sized for one PR each |
+| `dispatch` | Existing | Start agents on ready issues, one worktree each |
+| `ship` | Existing | Run checks, self-review, open the PR |
+| `adr` | Existing | Record a decision |
+| `reviewer` agent | Existing | Fresh-context review of a diff against spec and ADRs |
+| `steward` | Existing | How to behave when watching a PR: fix important findings, do not grind on minor ones |
+| `scope` | New | Route an issue: plan mode or spec (5.6) |
+| `converge` | New | After a PR merges against a spec delta, check the merged code against the delta's acceptance criteria; fold the delta into the spec or file an issue |
+| `ceremony` | New | Procedures for the four ceremonies (5.5) |
+| `queue` | New | Verbs over GitHub Issues: idea, scope, claim, complete, request-feature. Keeps an agent's interface stable if the backend changes |
+
+### 5.3 What runs in GitHub Actions
+
+Two jobs, both deterministic. Neither implements anything.
+
+| Job | Trigger | Does |
+|---|---|---|
+| Review gate | PR opened or updated | Classifies the PR (proposal, gate change, or normal); runs the reviewer agent in a loop with a fixer; publishes a required status check |
+| Ceremony trigger | PR merged | Counts merged PRs on the default branch; for each ceremony whose period divides the count, opens one issue labelled `ceremony` and `agent-task`; never opens the same issue twice |
+
+### 5.4 Where agents run
+
+| Surface | Used for | Plugin available how |
+|---|---|---|
+| Local session | Implementation, specs, decisions. The primary surface | Marketplace install |
+| Cloud session or routine | Stewarding open PRs, executing ceremony issues, work started from a phone | Copied in by the session-start hook |
+| GitHub Actions | The two jobs in 5.3 only | Reusable workflows referenced by the stubs |
+
+### 5.5 Ceremonies
+
+A ceremony is a maintenance activity with a fixed period, measured in
+merged PRs. After PR number k merges, ceremony i fires if k mod n_i = 0.
+Periods are starting values; the retro changes them.
+
+| i | Ceremony | Period n_i | Inputs | Output |
+|---|---|---|---|---|
+| 1 | Backlog grooming | 5 | Open issues; merged PRs since last grooming | Issues routed (5.6), closed, re-prioritised; any spec with several pending deltas assessed for splitting |
+| 2 | State and spec check | 10 | `STATE.md`, `specs/`, the running system | Stale text folded or deleted; a PR with the corrections |
+| 3 | Structural review | 20 | Code and ADRs | Issues for structural problems; ADRs where a decision was made implicitly |
+| 4 | Retro | 15 | Usage records (section 6), review rounds per PR, PR sizes, rework on direct-routed work | A PR to `CONTRIBUTING.md` proposing changed thresholds or periods |
+
+Trigger: the Actions job in 5.3 opens the issue. Execution: whoever picks
+the issue up. A routine, a cloud session, or James's next local session.
+Procedure: the `ceremony` skill.
+
+### 5.6 Routing work
+
+Applied by the `scope` skill when an issue is picked up. The route is
+written on the issue.
+
+| Expected size | Route |
+|---|---|
+| Fewer than six files and one session | Plan mode, then a PR |
+| More than that, or several sessions, or several agents, or a change to a public contract | `/spec`, then `split-spec` |
+
+The thresholds are stored in `CONTRIBUTING.md` so the retro can change them.
+
+## 6. Usage data
+
+### 6.1 Requirement
+
+Every agent session and every automated job records what it consumed, in a
+form that can be collected and analysed later. Live transmission to a
+server is not required. Data must not be lost when no server is available.
+
+### 6.2 What is recorded
+
+One record per API call, grouped into one file per session or job:
+
+| Field | Source |
+|---|---|
+| timestamp, session id, surface (local, cloud, actions) | hook or job environment |
+| repository, branch | git |
+| experiment tag, if set | `.claude/settings.local.json` on the machine |
+| model, effort | Claude Code |
+| input tokens, output tokens, cache write tokens, cache read tokens | Claude Code |
+| estimated cost in USD at list price | Claude Code |
+| duration | Claude Code |
+| skill, agent, plugin attribution where available | Claude Code |
+
+Claude Code already produces all of these. In a local or cloud session they
+are in the session transcript, a JSON lines file Claude Code writes as it
+runs. In an Actions job they are in the execution log the review action
+produces.
+
+### 6.3 Where it is stored
+
+Each project repository has a branch named `usage`, with no shared history
+with `main`. It holds one JSON file per session or job, named by date and
+id. A writer only ever creates a new file, so concurrent writers do not
+conflict.
+
+```mermaid
+flowchart LR
+    subgraph surfaces["Surfaces"]
+        L["Local session"]
+        C["Cloud session / routine"]
+        A["Actions job"]
+    end
+    subgraph project["Project repository"]
+        U["branch: usage<br/>usage/2026-10/&lt;session-id&gt;.json"]
+    end
+    N["Notes repository<br/>tools/usage"]
+
+    L -- "session-end hook reads transcript,<br/>writes file via gh api" --> U
+    C -- "same hook, same transcript,<br/>gh api through the cloud proxy" --> U
+    A -- "final step reads execution log,<br/>writes file with GITHUB_TOKEN" --> U
+    N -- "fetches usage branch of every project,<br/>aggregates by repo, model, day, experiment" --> U
+```
+
+Why the repository and not a server:
+
+- Every surface already has write access to the repository it works in.
+  No new credential, endpoint, or network path.
+- A cloud session or Actions job has no way to reach a server on James's
+  laptop. A git branch is reachable from all three.
+- The data is versioned, backed up, and inspectable with ordinary tools.
+
+### 6.4 How each surface writes
+
+| Surface | Mechanism |
+|---|---|
+| Local session | `SessionEnd` hook, registered by the template in `.claude/settings.json`. Claude Code passes the hook the transcript path. The hook summarises the transcript into one file and creates it on the `usage` branch with `gh api` |
+| Cloud session, routine | The same hook. Repository hooks run in cloud sessions. `gh api` is built into cloud sessions and is authenticated through the proxy |
+| Actions job | A final step in the reusable workflow reads the review action's execution log and creates the file with `GITHUB_TOKEN`, which has contents write permission |
+
+### 6.5 How it is read
+
+The notes repository's `tools/usage` fetches the `usage` branch of each
+project repository and aggregates by repository, model, day, experiment,
+skill, and surface. The retro ceremony runs it. The existing
+transcript-based and OpenTelemetry-based tools remain as local
+cross-checks.
+
+### 6.6 What this does not do
+
+- It does not transmit anything live. A local OpenTelemetry collector
+  exists on James's laptop and continues to receive local sessions; it is
+  not part of this design and nothing depends on it.
+- It does not capture work done outside a repository, such as a session
+  started in an empty directory.
+- It does not record prompt or response text.
+
+## 7. What is new in this iteration
+
+Not present in either earlier attempt:
+
+- Template changes carrying the review gate and hooks into existing
+  repositories.
+- GitHub Issues as the only queue, with an issue template as the contract
+  between repositories.
+- A written routing rule with thresholds the retro can change.
+- A step that checks merged code against the spec and updates the spec.
+- A ceremony trigger that needs no state and no memory.
+- Usage records written to the repository by every surface.
+- The harness repository's own PRs reviewed by the gate.
+
+## 8. Decisions for James
+
+| ID | Decision | Options | Recommendation |
+|---|---|---|---|
+| D1 | Where the template lives | stem-cell in place; or a new repository with stem-cell archived | stem-cell in place. The copier setup and history are there |
+| D2 | Bot identity | On by default; off by default, available as an option | Off by default |
+| D3 | Who executes ceremony issues | A routine; a cloud session; James's next local session; no default | No default in phase 1. Whoever picks the issue up |
+| D4 | Pinning | Skills follow the marketplace; workflows pinned to a tag chosen at creation | As stated. This is the harness's existing decision |
+| D5 | First project created from the template | The AWS research-compute repository; or a throwaway | The AWS repository. It needs a spec and has consequences |
+| D6 | Usage data store | Per-repository `usage` branch; a central repository; a server | Per-repository branch. No cross-repository credential needed |
+
+## 9. Phases
+
+| Phase | Delivers | Exit test |
+|---|---|---|
+| 1. Minimum project | Template creates everything in 5.1 except ceremonies and the issue template. Session-end hook and Actions usage step included. Harness repository gets its own review gate | A PR in the first project is reviewed by the gate and merged. Three usage files exist on its `usage` branch: one from the local session that wrote the PR, one from a cloud session opened on the repository, one from the gate run |
+| 2. Issues as the queue | Labels, the feature-request template, `CONTRIBUTING.md` rewritten for issues, the `scope` and `queue` skills | An issue is routed, implemented, merged, and closed by its PR |
+| 3. Cadence | `ceremonies.yml` and the `ceremony` skill | The fifth merged PR opens a grooming issue; an agent completes it |
+| 4. Closing the loop | `converge`; retro reading usage data | A spec delta is folded by `converge`; a retro PR proposes a threshold change with the numbers behind it |
+| 5. Update path | `copier update` run on cytometer, a repository created from the May template | The resulting PR merges with conflicts only in hand-edited files |
+
+Out of scope: the cross-repository coordination layer from May (atlas,
+morphogen), until more than three repositories are active.
+
+## 10. Success criteria
+
+After a gap of several months:
+
+- `STATE.md` and `specs/` in any project say where it is.
+- Ceremony issues opened during the gap are waiting.
+- A template change reaches every project as a PR.
+- The retro has changed at least one threshold, citing usage data.
+- The usage branches show what every surface consumed.
+
+## 11. Glossary
+
+| Term | Meaning |
+|---|---|
+| Template | The stem-cell repository: files with placeholders that copier turns into a project repository |
+| Project repository | A repository created from the template |
+| Harness | The repository holding the plugin and reusable workflows |
+| Plugin | A Claude Code package of skills, agents, and hooks, installed from a marketplace |
+| Skill | A procedure an agent follows, invoked as `/name` |
+| Hook | A script Claude Code runs on an event: session start, session end, before a tool call |
+| Gate | The GitHub Actions review workflow that must pass before a PR can merge |
+| Ceremony | A maintenance activity triggered every N merged PRs |
+| Delta | A pending change written into a spec: what changes, what stays, what is removed, with acceptance criteria |
+| Surface | A place an agent runs: local session, cloud session or routine, GitHub Actions |
+| Usage record | One file per session or job listing model, tokens, cost estimate, duration, attribution |
