@@ -1,0 +1,25 @@
+{
+  "extraKnownMarketplaces": {
+    "jsb-harness": {
+      "source": {
+        "source": "github",
+        "repo": "JSBaxter/harness"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "jsb-harness@jsb-harness": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

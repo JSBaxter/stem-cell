@@ -11,3 +11,12 @@ target/
 # Committing it would silently override what the gate delivers — use
 # .claude/agents/reviewer-override.md to replace the reviewer deliberately.
 .claude/agents/reviewer.md
+
+# Vendored into .claude/ at session start by .claude/hooks/session-start.sh,
+# because cloud sessions do not install marketplace plugins. Canonical copies
+# live in JSBaxter/harness; never commit them here. The hook's copy of
+# agents/reviewer.md lands on the ignored path above. reviewer-override.md is
+# the one file a cell commits under .claude/agents/.
+.claude/skills/
+.claude/agents/*
+!.claude/agents/reviewer-override.md
