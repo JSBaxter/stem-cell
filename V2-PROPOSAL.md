@@ -203,7 +203,7 @@ Marked with my recommendation. Change any of them in the PR review.
   whoever is around: a routine if one is watching, else James's next local
   session. No default executor is wired in phase one.
 - **D4. Pinning.** Recommend: skills follow the marketplace unpinned; the
-  gate workflows are pinned to a tag chosen at render time. This is the
+  gate workflows are pinned to a tag chosen when the repo is created. This is the
   harness's existing decision applied to cells.
 - **D5. First proving project.** Recommend: the AWS research-compute repo
   for the startup. It needs a spec anyway and has real consequences.
