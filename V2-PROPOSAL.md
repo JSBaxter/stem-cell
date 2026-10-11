@@ -14,7 +14,7 @@ underweighted.
 
 ## 2. The two previous attempts, in one paragraph each
 
-**stem-cell (May 2026).** A copier template that stamped out "cells": one
+**stem-cell (May 2026).** A copier template (a folder of files with placeholders; copier asks a few questions and writes out a real repo) that stamped out "cells": one
 repo, one purpose, each with nine process documents (manifesto,
 contributing, testing, state, ceremonies, reproduction, changelog, two agent
 entrypoints), a SQLite task queue vendored into the repo as an MCP server, a
@@ -57,7 +57,7 @@ skills. No one has data on a living spec over months, which is our whole bet.
 
 Six rules. Each one answers a failure above.
 
-**R1. One template renders everything a repo needs, and copier is the only
+**R1. One template produces everything a repo needs, and copier is the only
 way changes reach it.** No copy-once template, no hand-vendoring. A fix made
 in the template lands in every repo as a PR via `copier update`. *(Fixes:
 harness's no-update-path; stem-cell already did this, we keep it.)*
@@ -81,7 +81,7 @@ stem-cell's bot identity by default because the author of a PR does not
 matter when the merger is always James.)*
 
 **R5. Telemetry is part of the repo, on every surface, from the first
-commit.** A rendered repo carries its own export configuration: local
+commit.** A repo created from the template carries its own export configuration: local
 sessions, cloud sessions, routines and the Actions gate all send token,
 model, cost, duration and attribution events to one collector, tagged with
 the repo and the experiment. The collector endpoint and its credential are
@@ -96,7 +96,7 @@ sizes, and proposes threshold changes as a PR. Deterministic triggers, agent
 judgement inside, human merge. *(Fixes: stem-cell's ceremonies had no
 trigger that fired without someone remembering, and no data to act on.)*
 
-### 3.1 What a repo contains after rendering
+### 3.1 What a repo created from the template contains
 
 | Path | Role | From |
 |---|---|---|
@@ -107,16 +107,16 @@ trigger that fired without someone remembering, and no data to act on.)*
 | `CLAUDE.md`, `AGENTS.md` | ten lines: read CONTRIBUTING, STATE, the spec; run skills for everything else | harness, cut down |
 | `specs/` | living specs with pending deltas; one stub seeded at spawn | harness |
 | `docs/adr/` | decisions, MADR format | harness |
-| `.claude/settings.json` | plugin marketplace pointer, hooks, and the telemetry env block: exporter on, endpoint and resource attributes from template answers | harness, plus new |
+| `.claude/settings.json` | plugin marketplace pointer, hooks, and the telemetry settings: exporter on, collector address and tags from template answers | harness, plus new |
 | `.github/workflows/*.yml` env | the same telemetry variables on the gate and ceremony jobs; the credential from a repo secret | new |
 | `STATE.md` telemetry section | where this repo's telemetry goes and how to query it | new |
-| `.claude/hooks/` | session-start (installs deps, vendors the plugin for cloud sessions), PreToolUse guards | harness, rendered not copied |
+| `.claude/hooks/` | session-start (installs deps, copies the plugin in for cloud sessions), PreToolUse guards | harness, generated from the template rather than copied by hand |
 | `.github/workflows/claude-review.yml`, `claude-fix.yml` | caller stubs for the harness's reusable gate, pinned by a template answer | harness |
 | `.github/workflows/ceremonies.yml` | on merged PR: count, modulo, open a `ceremony` issue | new |
 | `.github/ISSUE_TEMPLATE/feature-request.yml` | the cross-repo coupling contract | new, from stem-cell's queue verb |
 | `.copier-answers.yml` | which template version this repo is | stem-cell |
 
-Gone from stem-cell: the queue, Claude-in-CI, the testing and reproduction
+Gone from stem-cell: the queue, Claude running inside CI, the testing and reproduction
 documents (their content moves into CONTRIBUTING and the template README),
 the changelog (git and ADRs hold history), bot identity by default.
 
@@ -153,7 +153,7 @@ make sure every surface sends it somewhere that persists.
 
 | Surface | How the config arrives | Endpoint it needs |
 |---|---|---|
-| Local session | `.claude/settings.json` env block, rendered | any reachable OTLP endpoint; the loopback collector that exists today, or the shared one |
+| Local session | the repo's `.claude/settings.json`, written by the template | any reachable collector; the one on this laptop today, or the shared one |
 | Cloud session, routine | the cloud environment's env vars, set once per environment; the repo's settings block applies too | an endpoint reachable from Anthropic's network |
 | Actions gate, ceremonies | `env:` on the job, credential from `OTEL_EXPORTER_OTLP_HEADERS` repo secret | same |
 
@@ -166,8 +166,8 @@ is off are dropped, which is when routines run. The gap is measurable
 moving the collector to a small always-on box. The file sink is the archive
 either way; a dashboard or hosted backend reads from it later.
 
-Template answers: `telemetry_endpoint` (default the Funnel URL once it
-exists; `http://127.0.0.1:4318` until then) and `experiment` (optional tag
+Questions the template asks at creation: `telemetry_endpoint` (default the
+Funnel URL once it exists; `http://127.0.0.1:4318` until then) and `experiment` (optional tag
 for the resource attributes). Repo secret: the bearer token. STATE.md records
 all three so an agent in the repo can answer "where does my telemetry go".
 
@@ -184,9 +184,9 @@ round and it was the single most expensive part of that design.)*
 Not in either previous attempt: the update path carrying the gate and hooks
 (R1 applied to R4); issues with a coupling contract (R2); the scope skill and
 its written thresholds; the converge skill; the ceremony trigger as a
-stateless Action; telemetry rendered into every repo and exported from
+stateless Action; telemetry created from the template into every repo and exported from
 every surface (R5); the retro reading it (R6); the harness gating its own
-PRs; a template that renders hooks instead of a hook that copies a plugin.
+PRs; hooks written by the template instead of a hook that copies a plugin in.
 
 ## 5. Decisions James needs to make
 
@@ -216,8 +216,8 @@ Marked with my recommendation. Change any of them in the PR review.
 
 Each phase is one or a few PRs, and each leaves something usable.
 
-1. **Minimum cell.** Template renders the table in 3.1 minus ceremonies and
-   the issue template, telemetry included. The collector is reachable from
+1. **Minimum cell.** The template produces everything in the table in 3.1
+   except ceremonies and the issue template, telemetry included. The collector is reachable from
    outside this machine. Spawn the proving project from it. Exit: a PR in
    that repo is gated and merges, and the gate run, the local session that
    wrote it, and a cloud session on the same repo all appear in the
