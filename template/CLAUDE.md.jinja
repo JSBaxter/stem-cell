@@ -1,0 +1,58 @@
+# {{ project_name }}
+
+{{ project_purpose }}
+
+## Ground rules for agents
+
+- **Read before you act:** the relevant spec in `specs/` and any ADR in
+  `docs/adr/` touching the area you're changing. If your change contradicts an
+  accepted ADR, stop and surface it — don't silently "fix" the decision away.
+- **Never push to the default branch.** All changes go: branch → small
+  commits → `/ship` → PR. One issue = one PR = reviewable within
+  `task.max_review_minutes`.
+- **Conventional Commits, always.** Every commit message uses the
+  `type(scope): summary` form (`feat`, `fix`, `refactor`, `docs`, `test`,
+  `chore`, …). The body still says *why*, not just *what*.
+- **Only finished work gets agent review.** A PR that just asks James's opinion —
+  a spec, a mockup, any proposal — carries the `proposal` label; the review gate
+  then skips the agent reviewer and James's merge is the review. Finished
+  implementation PRs are never labelled `proposal`. `/spec` applies the label
+  for you; add it by hand for mockup/RFC PRs.
+- **Definition of done lives in the issue.** If the issue you're working has no
+  acceptance criteria, send it back through `/split-spec` before writing code.
+- **Approach before tasks, when there's a real choice.** If a spec involves
+  picking a dependency, an interface, or module boundaries — or work will be
+  dispatched in parallel — run `/plan` after the spec merges and before
+  `/split-spec`. Plans are ephemeral: durable decisions become ADRs, and
+  `specs/<area>.plan.md` is deleted once its issues land.
+- **New conventions get an ADR** (`/adr`), and CLAUDE.md gets the resulting rule.
+- **Tests run before every PR.** The language setup skill fills these in.
+  Test command: `TEST_COMMAND_HERE`.
+  Lint command: `LINT_COMMAND_HERE`.
+  Type check command: `TYPECHECK_COMMAND_HERE`.
+- **Issue state is set only through `cellq`** (the queue adapter,
+  `plugins/jsb-harness/bin/cellq` in the harness plugin): `cellq state`,
+  `cellq claim`, `cellq complete`, and so on. Never `gh issue edit`,
+  `gh project`, or an MCP issue-write tool. The adapter is the only code that
+  knows the labels and fields behind a state.
+- **No rule carries a number.** Every threshold — diff size, file count,
+  review rounds, stale-claim age, ceremony periods, edge weights — comes from
+  `thresholds.yml` at the repo root, read with `cellq threshold <dotted.key>`.
+  If you need a limit, read it; never write one into a skill or this file.
+- **Skills an agent in this cell uses, and when:** `scope` on a new issue;
+  `implement` after a claim on a `small` issue; `ship` to open the PR;
+  `converge` when a parent issue's tasks all close; `ceremony-<name>` from a
+  ceremony issue (`grooming`, `health`, `retro`, `structural`, `audit`);
+  `queue` for any issue-state change; `steward` when watching a PR you opened.
+  Each is named by this entrypoint, a trigger, or a step in another skill —
+  none is discovered.
+
+## Cloud sessions (claude.ai/code)
+
+Plugins may not install in cloud containers; the session-start hook copies
+the harness plugin in. If a skill is still missing, read it from
+`../harness/plugins/jsb-harness/skills/<name>/SKILL.md` and follow it, noting
+"followed /<name> from source" in your PR body, and run `cellq` from
+`../harness/plugins/jsb-harness/bin/cellq`. A cloud session cannot set commit
+statuses or check runs; the Actions gate stamps the status. Report state via
+PR comments only.
