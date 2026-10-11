@@ -30,6 +30,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: read   # cellq merged-count reads the pulls search; without it the count is 0
 
 jobs:
   ceremony:
