@@ -1,0 +1,50 @@
+{% raw -%}
+# Scheduled template sync (stem-cell ADR 0002): keep this cell current with
+# its template by running `copier update` inside the cell's own Actions and
+# opening one PR on the `template-sync` branch, reused while open. All logic
+# lives in the reusable workflow
+# JSBaxter/harness/.github/workflows/template-sync.yml, so changes to the
+# sync reach this cell through a bump PR with no edit here — this stub only
+# wires the schedule, the manual trigger, the single concurrency group, the
+# token scopes, and secrets. See harness ADR 0001 and 0006.
+#
+# The repository setting "Allow GitHub Actions to create and approve pull
+# requests" (Settings > Actions > General) must be on, or the run fails to
+# open the PR with GITHUB_TOKEN. A PR opened with that token fires no other
+# workflow, so the review gate runs on it only after a human pushes.
+#
+# IMPORTANT — primary-identity repos ONLY. A stealth-identity repo must NOT
+# reference JSBaxter/* (it would link the accounts in plaintext); it keeps a
+# self-contained copy instead.
+#
+# Pin: a full commit SHA with the branch in a trailing comment (harness ADR
+# 0006). Renovate opens a bump PR here when the harness moves; do not edit the
+# SHA by hand.
+name: Template Sync
+
+on:
+  schedule:
+    # Weekly, early Monday UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# One sync at a time: every run force-updates the same branch and reuses the
+# open PR, so a manual run during the scheduled one queues behind it rather
+# than racing it.
+concurrency:
+  group: template-sync
+  cancel-in-progress: false
+
+# A reusable-workflow caller caps the called workflow at the caller's token
+# scopes, and a repo's default GITHUB_TOKEN is read-only — so grant here the
+# scopes the sync needs (push the sync branch, open or update its PR) or the
+# call fails to start.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+{% endraw %}
+    uses: JSBaxter/harness/.github/workflows/template-sync.yml@{{ harness_ref }} # main
+    secrets: inherit

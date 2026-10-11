@@ -1,0 +1,48 @@
+{% raw -%}
+# Thin caller for the cell converge trigger. All logic lives in the reusable
+# workflow JSBaxter/harness/.github/workflows/cell-converge.yml: when an issue
+# closes, it looks up the issue's parent and, once every sub-issue of that
+# parent is closed, starts a session that runs the `converge` skill on the
+# parent. Changes there reach this cell through a bump PR with no edit here —
+# this stub only wires the issue trigger, the per-issue concurrency group,
+# the token scopes, and secrets. See harness ADR 0001, 0006 and 0008.
+#
+# A sub-issue closed with GITHUB_TOKEN from inside another workflow (for
+# example by `cellq complete` in cell-ceremony.yml) fires no `issues` event,
+# so it does not start this; grooming is to catch a parent whose sub-issues
+# are all closed with no fold PR (a harness follow-up to #46, not yet built).
+#
+# IMPORTANT — primary-identity repos ONLY. A stealth-identity repo must NOT
+# reference JSBaxter/* (it would link the accounts in plaintext); it keeps a
+# self-contained copy instead.
+#
+# Pin: a full commit SHA with the branch in a trailing comment (harness ADR
+# 0006). Renovate opens a bump PR here when the harness moves; do not edit the
+# SHA by hand.
+name: Cell Converge
+
+on:
+  issues:
+    types: [closed]
+
+# NOT cancel-in-progress, as in the scope stub: a cancel must never kill a
+# session between cellq's label write and its comment write.
+concurrency:
+  group: cell-converge-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+# A reusable-workflow caller caps the called workflow at the caller's token
+# scopes, and a repo's default GITHUB_TOKEN is read-only — so grant here the
+# scopes the converge session needs (read the checkout, write issue labels
+# and comments, mint the OIDC token the action exchanges) or the call fails
+# to start.
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+jobs:
+  converge:
+{% endraw %}
+    uses: JSBaxter/harness/.github/workflows/cell-converge.yml@{{ harness_ref }} # main
+    secrets: inherit
