@@ -19,7 +19,7 @@ notes`. Write "none" when nothing changed shape.
   type commands, the skills an agent uses, the `cellq` and
   `thresholds.yml` rules, the cloud-session note. No longer points at
   MANIFESTO.md or CONTRIBUTING.md.
-- `README.md`: purpose, the pointer to `specs/`, the creation date.
+- `README.md`: purpose and the pointer to `specs/`.
 - `.gitignore`: now cell-owned; the template renders it once.
 - `thresholds.yml`: new; every numeric threshold a cell uses lives here.
 - `specs/`: new; `specs/README.md` and the spec stub.
