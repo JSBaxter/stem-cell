@@ -18,16 +18,20 @@
 # install and PreToolUse guard sections.
 set -euo pipefail
 
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+# Claude Code sets CLAUDE_PROJECT_DIR; the fallback (this file lives at
+# .claude/hooks/) needs no repository, so the hook also runs in a freshly
+# rendered dir that is not initialised yet.
+root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 plugin_rel="plugins/jsb-harness"
 
 # --- installed plugin? ------------------------------------------------------
 # A marketplace install lands under ~/.claude/plugins/cache/<marketplace>/
-# <plugin>/<version>. If the plugin is installed, Claude Code loads it and a
-# vendored copy would only duplicate every skill and agent. Nothing to do.
+# <plugin>/<version>; depth 1 is only the marketplace, so look at depth 2.
+# If the plugin is installed, Claude Code loads it and a vendored copy would
+# only duplicate every skill and agent. Nothing to do.
 plugins_cache="$HOME/.claude/plugins/cache"
 if [ -d "$plugins_cache" ] \
-   && [ -n "$(find "$plugins_cache" -maxdepth 2 -type d -name jsb-harness -print -quit 2>/dev/null)" ]; then
+   && [ -n "$(find "$plugins_cache" -mindepth 2 -maxdepth 2 -type d -name jsb-harness -print -quit 2>/dev/null)" ]; then
   exit 0
 fi
 

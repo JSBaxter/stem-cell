@@ -14,7 +14,8 @@ target/
 
 # Vendored into .claude/ at session start by .claude/hooks/session-start.sh,
 # because cloud sessions do not install marketplace plugins. Canonical copies
-# live in JSBaxter/harness; never commit them here. reviewer-override.md is
+# live in JSBaxter/harness; never commit them here. The hook's copy of
+# agents/reviewer.md lands on the ignored path above. reviewer-override.md is
 # the one file a cell commits under .claude/agents/.
 .claude/skills/
 .claude/agents/*
