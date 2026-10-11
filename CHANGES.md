@@ -3,7 +3,7 @@
 Shape notes for rendered cells. One `## vX.Y.Z` section per stem-cell
 release, newest first, each with an `### Owned files` subsection: what
 changed in the shape of the cell-owned files (`thresholds.yml`,
-`CLAUDE.md`, `README.md`, `.gitignore`, `specs/`, `docs/adr/`), which
+`CLAUDE.md`, `README.md`, `.gitignore`, `LICENSE`, `specs/`, `docs/adr/`), which
 `copier update` never overwrites. The template sync quotes the sections
 newer than a cell's current version into its sync PR under `## Shape
 notes`. Write "none" when nothing changed shape.
@@ -12,8 +12,10 @@ notes`. Write "none" when nothing changed shape.
 
 ### Owned files
 
-`CLAUDE.md`, `README.md`, `.gitignore`, `thresholds.yml`, `specs/` and
-`docs/adr/` are new or reshaped in v2:
+`CLAUDE.md`, `README.md`, `.gitignore`, `LICENSE`, `thresholds.yml`, `specs/`
+and `docs/adr/` are new or reshaped in v2 (`LICENSE` is owned so the year
+written at birth is never rewritten by a sync; `README.md` carries a lineage
+line, no date):
 
 - `CLAUDE.md`: under 60 lines; purpose, ground rules, the test, lint and
   type commands, the skills an agent uses, the `cellq` and
