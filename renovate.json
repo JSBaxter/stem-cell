@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "stem-cell's own Renovate config: the harness preset plus a regex manager that bumps the harness_ref default in copier.yml to the head of JSBaxter/harness main.",
+  "extends": [
+    "github>JSBaxter/harness"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track the `default:` of the `harness_ref` question in copier.yml as the digest of JSBaxter/harness main (git-refs). Rendered cells pin their workflow stubs to this SHA.",
+      "managerFilePatterns": [
+        "/^copier\\.yml$/"
+      ],
+      "matchStrings": [
+        "harness_ref:\\n(?:  [^\\n]*\\n)*?  default: (?<currentDigest>[0-9a-f]{40})\\n"
+      ],
+      "depNameTemplate": "https://github.com/JSBaxter/harness",
+      "packageNameTemplate": "https://github.com/JSBaxter/harness",
+      "datasourceTemplate": "git-refs",
+      "currentValueTemplate": "main"
+    }
+  ]
+}
