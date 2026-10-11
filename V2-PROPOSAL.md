@@ -55,7 +55,7 @@ skills. No one has data on a living spec over months, which is our whole bet.
 
 ## 3. The design
 
-Five rules. Each one answers a failure above.
+Six rules. Each one answers a failure above.
 
 **R1. One template renders everything a repo needs, and copier is the only
 way changes reach it.** No copy-once template, no hand-vendoring. A fix made
@@ -80,13 +80,21 @@ approval. Agents never merge. *(Keeps harness's proven gate; removes
 stem-cell's bot identity by default because the author of a PR does not
 matter when the merger is always James.)*
 
-**R5. The process measures itself and adjusts on a cadence.** Every session
-exports token, model and attribution telemetry to a local collector (done
-today, in the notes repo). The retro ceremony reads it, plus review rounds
-per PR and PR sizes, and changes the thresholds. Deterministic triggers,
-agent judgement inside, human merge. *(Fixes: harness measured nothing;
-stem-cell's ceremonies had no trigger that fired without someone
-remembering.)*
+**R5. Telemetry is part of the repo, on every surface, from the first
+commit.** A rendered repo carries its own export configuration: local
+sessions, cloud sessions, routines and the Actions gate all send token,
+model, cost, duration and attribution events to one collector, tagged with
+the repo and the experiment. The collector endpoint and its credential are
+template answers, not something each machine remembers to set. No telemetry
+is a bug, not a default. *(Fixes: harness measured nothing; the first draft
+of this proposal left it to per-machine settings, which is the same
+mistake.)*
+
+**R6. The process reads its own telemetry and adjusts on a cadence.** The
+retro ceremony reads the collector output plus review rounds per PR and PR
+sizes, and proposes threshold changes as a PR. Deterministic triggers, agent
+judgement inside, human merge. *(Fixes: stem-cell's ceremonies had no
+trigger that fired without someone remembering, and no data to act on.)*
 
 ### 3.1 What a repo contains after rendering
 
@@ -99,7 +107,9 @@ remembering.)*
 | `CLAUDE.md`, `AGENTS.md` | ten lines: read CONTRIBUTING, STATE, the spec; run skills for everything else | harness, cut down |
 | `specs/` | living specs with pending deltas; one stub seeded at spawn | harness |
 | `docs/adr/` | decisions, MADR format | harness |
-| `.claude/settings.json` | plugin marketplace pointer, hooks | harness |
+| `.claude/settings.json` | plugin marketplace pointer, hooks, and the telemetry env block: exporter on, endpoint and resource attributes from template answers | harness, plus new |
+| `.github/workflows/*.yml` env | the same telemetry variables on the gate and ceremony jobs; the credential from a repo secret | new |
+| `STATE.md` telemetry section | where this repo's telemetry goes and how to query it | new |
 | `.claude/hooks/` | session-start (installs deps, vendors the plugin for cloud sessions), PreToolUse guards | harness, rendered not copied |
 | `.github/workflows/claude-review.yml`, `claude-fix.yml` | caller stubs for the harness's reusable gate, pinned by a template answer | harness |
 | `.github/workflows/ceremonies.yml` | on merged PR: count, modulo, open a `ceremony` issue | new |
@@ -134,6 +144,33 @@ New:
   layer over Issues and Projects so an agent's interface is stable if the
   backend changes.
 
+### 3.2a Telemetry, concretely
+
+Claude Code already emits an `api_request` event per model call with
+tokens, estimated cost, duration, model, effort, and attribution to skill,
+plugin, agent and repository, over standard OpenTelemetry. The work is to
+make sure every surface sends it somewhere that persists.
+
+| Surface | How the config arrives | Endpoint it needs |
+|---|---|---|
+| Local session | `.claude/settings.json` env block, rendered | any reachable OTLP endpoint; the loopback collector that exists today, or the shared one |
+| Cloud session, routine | the cloud environment's env vars, set once per environment; the repo's settings block applies too | an endpoint reachable from Anthropic's network |
+| Actions gate, ceremonies | `env:` on the job, credential from `OTEL_EXPORTER_OTLP_HEADERS` repo secret | same |
+
+So the collector has to be reachable from outside this laptop from phase
+one, not "later". Scrappy first version: the existing collector on this
+machine exposed through Tailscale Funnel with a bearer-token auth
+extension, so the sink is not open. Known cost: events sent while the laptop
+is off are dropped, which is when routines run. The gap is measurable
+(session counts on claude.ai versus events received) and is the trigger for
+moving the collector to a small always-on box. The file sink is the archive
+either way; a dashboard or hosted backend reads from it later.
+
+Template answers: `telemetry_endpoint` (default the Funnel URL once it
+exists; `http://127.0.0.1:4318` until then) and `experiment` (optional tag
+for the resource attributes). Repo secret: the bearer token. STATE.md records
+all three so an agent in the repo can answer "where does my telemetry go".
+
 ### 3.3 Where work runs
 
 Local sessions are primary. Cloud sessions and routines steward PRs,
@@ -147,7 +184,8 @@ round and it was the single most expensive part of that design.)*
 Not in either previous attempt: the update path carrying the gate and hooks
 (R1 applied to R4); issues with a coupling contract (R2); the scope skill and
 its written thresholds; the converge skill; the ceremony trigger as a
-stateless Action; telemetry feeding the retro; the harness gating its own
+stateless Action; telemetry rendered into every repo and exported from
+every surface (R5); the retro reading it (R6); the harness gating its own
 PRs; a template that renders hooks instead of a hook that copies a plugin.
 
 ## 5. Decisions James needs to make
@@ -169,14 +207,21 @@ Marked with my recommendation. Change any of them in the PR review.
   harness's existing decision applied to cells.
 - **D5. First proving project.** Recommend: the AWS research-compute repo
   for the startup. It needs a spec anyway and has real consequences.
+- **D6. Collector placement.** Recommend: this laptop behind Tailscale
+  Funnel for phase one, measured gap, then a small always-on box if the gap
+  matters. Alternative: an always-on box from day one. The difference is a
+  few pounds a month against a week of uncertainty.
 
 ## 6. Phases
 
 Each phase is one or a few PRs, and each leaves something usable.
 
 1. **Minimum cell.** Template renders the table in 3.1 minus ceremonies and
-   the issue template. Spawn the proving project from it. Exit: a PR in that
-   repo is gated and merges.
+   the issue template, telemetry included. The collector is reachable from
+   outside this machine. Spawn the proving project from it. Exit: a PR in
+   that repo is gated and merges, and the gate run, the local session that
+   wrote it, and a cloud session on the same repo all appear in the
+   collector attributed to that repo.
 2. **Issues as the queue.** Labels, the feature-request template, CONTRIBUTING
    rewritten for issues, the scope skill. Exit: an issue routed, built,
    merged, closed by its PR.
