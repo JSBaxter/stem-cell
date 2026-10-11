@@ -17,6 +17,7 @@ _skip_if_exists:
   - .gitignore
   - specs/**
   - docs/adr/**
+  - LICENSE
 
 _message_after_copy: |
   Cell rendered.

@@ -27,7 +27,7 @@ on GitHub are retired once the first cell renders from this template.
 |---|---|---|
 | `CLAUDE.md` | Under 60 lines: the purpose paragraph; the ground rules; the test, lint and type commands; the skills an agent uses and when; the rule that issue state goes through `cellq`; the rule that every threshold comes from `thresholds.yml`; the cloud-session note. Starts from the harness template's current text. | commands and purpose differ per cell |
 | `AGENTS.md` | One line importing `CLAUDE.md`, for agents that read that name | |
-| `README.md` | Purpose, the pointer to `specs/`, the creation date | |
+| `README.md` | Purpose, the pointer to `specs/`, the lineage line naming the template and the answers file | |
 | `specs/README.md`, `specs/<purpose-slug>.md` | The spec stub: Purpose from the copier answer, every other section empty | the first spec PR fills it |
 | `docs/adr/0000-record-architecture-decisions.md` | The ADR seed | |
 | `thresholds.yml` | The starter values, as the harness template holds them | revised per cell by the retro |
@@ -78,7 +78,7 @@ are gone or defaulted (MIT licence rendered; a remote is assumed).
 | Scheduled sync | `template-sync.yml` in each cell runs on a schedule, calls the harness-hosted reusable sync workflow pinned by SHA, which runs `copier update` against the template version recorded in `.copier-answers.yml` and opens one PR per cell when anything changed. It never pushes to the default branch. A conflict copier cannot resolve makes the PR fail visibly with the conflict markers in the diff. |
 | Drift check | The same run reports, in the PR body or a comment, which template version the cell is on and which is current. A cell behind by more than one template release is listed by the harness's fixture run. |
 | Pin bumps | Renovate bumps the five caller stubs' SHA; the template records the SHA it was last synced to in `harness_ref`'s default. |
-| Owned files | `thresholds.yml`, `CLAUDE.md`'s purpose and commands, `specs/`, `docs/adr/` are owned by the cell: copier never overwrites them after birth (`_skip_if_exists`). Template changes to their shape arrive as a note in the sync PR body, not as a diff. |
+| Owned files | `thresholds.yml`, `CLAUDE.md`, `README.md`, `.gitignore`, `LICENSE`, `specs/`, `docs/adr/` are owned by the cell: copier never overwrites them after birth (`_skip_if_exists`). Template changes to their shape arrive as a note in the sync PR body, not as a diff. |
 
 ### Migration of a May cell
 
