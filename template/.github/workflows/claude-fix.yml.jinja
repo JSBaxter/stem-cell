@@ -1,0 +1,66 @@
+{% raw -%}
+# Thin caller for the human-feedback round. All logic lives in the reusable
+# workflow JSBaxter/harness/.github/workflows/claude-fix.yml, so fixes in the
+# harness reach this repo with no edit here — this stub only wires the comment
+# triggers, the per-PR concurrency group, the token scopes, and secrets.
+# See harness docs/adr/0001-ci-via-reusable-workflow.md and 0006.
+#
+# IMPORTANT — primary-identity repos ONLY. A stealth-identity repo must NOT
+# reference JSBaxter/* (it would link the accounts in plaintext); it keeps a
+# self-contained copy instead.
+#
+# Pin: a full commit SHA with the branch in a trailing comment (harness ADR
+# 0006). Renovate opens a bump PR here when the harness moves; do not edit the
+# SHA by hand.
+name: Claude Fix
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+# Shares the gate's per-PR group deliberately: a feedback round and a review
+# run must never work the same PR at once.
+#
+# But NOT cancel-in-progress. GitHub evaluates concurrency at workflow level,
+# before any job `if` — so a run that is certain to skip (any comment without
+# `@claude`, which is most of them) still enters this group. With cancelling on,
+# it killed the gate's in-flight review, which then stamped "run did not
+# complete - needs human" on a PR nobody had reviewed. Every comment on a PR
+# under review did this, including the gate's own review-summary comment and any
+# human reply. (chord-recommender#29.)
+#
+# With cancelling off the run queues instead, which is what "never at once"
+# actually asked for; a skipping run clears the slot in seconds. The gate keeps
+# cancel-in-progress: true, because there a new push SHOULD supersede a review
+# of the old head.
+# And queue: max, because queueing alone is not enough. A concurrency group holds
+# at most one pending run by default, and a new arrival evicts the pending one
+# *regardless of cancel-in-progress* — so a genuine `@claude` request queued
+# behind a long review could be silently dropped by any later comment. queue:max
+# raises that limit, served FIFO, and is only valid with cancel-in-progress
+# false. (Found by the review gate on chord-recommender#30.)
+concurrency:
+  group: claude-review-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+  queue: max
+
+# A reusable-workflow caller caps the called workflow at the caller's token
+# scopes, and a repo's default GITHUB_TOKEN is read-only — so grant here the
+# scopes the round needs (push fixes, stamp statuses, label, comment) or the
+# call fails to start.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  statuses: write
+  id-token: write
+
+jobs:
+  fix:
+{% endraw %}
+    uses: JSBaxter/harness/.github/workflows/claude-fix.yml@{{ harness_ref }} # main
+    secrets: inherit

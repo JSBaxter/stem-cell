@@ -1,0 +1,49 @@
+{% raw -%}
+# Thin caller for the cell scope trigger. All logic lives in the reusable
+# workflow JSBaxter/harness/.github/workflows/cell-scope.yml: when an issue
+# opens, it starts a session that runs the `scope` skill on it; when the
+# repository owner answers a `state:needs-input` question, it runs scope
+# again. Changes there reach this cell through a bump PR with no edit here —
+# this stub only wires the issue triggers, the per-issue concurrency group,
+# the token scopes, and secrets. See harness ADR 0001, 0006 and 0008.
+#
+# IMPORTANT — primary-identity repos ONLY. A stealth-identity repo must NOT
+# reference JSBaxter/* (it would link the accounts in plaintext); it keeps a
+# self-contained copy instead.
+#
+# Pin: a full commit SHA with the branch in a trailing comment (harness ADR
+# 0006). Renovate opens a bump PR here when the harness moves; do not edit the
+# SHA by hand.
+name: Cell Scope
+
+on:
+  issues:
+    types: [opened]
+  # Every comment on every issue (and PR) enters here; the reusable workflow
+  # holds the guard that keeps only an owner's answer on a needs-input issue,
+  # so most of these runs skip in seconds.
+  issue_comment:
+    types: [created]
+
+# NOT cancel-in-progress (unlike the review stub): two quick owner comments on
+# one needs-input issue queue rather than run together, and a cancel never
+# kills a session between cellq's label write and its comment write.
+concurrency:
+  group: cell-scope-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+# A reusable-workflow caller caps the called workflow at the caller's token
+# scopes, and a repo's default GITHUB_TOKEN is read-only — so grant here the
+# scopes the scope session needs (read the checkout, write issue labels and
+# comments, mint the OIDC token the action exchanges) or the call fails to
+# start.
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+jobs:
+  scope:
+{% endraw %}
+    uses: JSBaxter/harness/.github/workflows/cell-scope.yml@{{ harness_ref }} # main
+    secrets: inherit

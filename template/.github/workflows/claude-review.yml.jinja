@@ -1,0 +1,42 @@
+{% raw -%}
+# Thin caller for the agent review gate. All logic lives in the reusable
+# workflow JSBaxter/harness/.github/workflows/claude-review.yml, so review-gate
+# updates in the harness reach this repo on its next PR with no edit here — this
+# stub only wires the PR triggers, the per-PR concurrency group, and forwards
+# secrets. See harness docs/adr/0001-ci-via-reusable-workflow.md.
+#
+# IMPORTANT — primary-identity repos ONLY. A stealth-identity repo must NOT
+# reference JSBaxter/* (it would link the accounts in plaintext); it keeps a
+# self-contained copy of the review workflow instead.
+#
+# Pin: a full commit SHA with the branch in a trailing comment (harness ADR
+# 0006). Renovate opens a bump PR here when the harness moves; do not edit the
+# SHA by hand.
+name: Claude Review
+
+on:
+  pull_request:
+    # labeled/unlabeled: toggling the `proposal` label re-runs and flips the
+    # verdict (proposals skip the agent reviewer — see the reusable workflow).
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# A reusable-workflow caller caps the called workflow at the caller's token
+# scopes, and a repo's default GITHUB_TOKEN is read-only — so grant here the
+# scopes the gate needs (stamp statuses, push fixes, label, comment) or the call
+# fails to start.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  statuses: write
+  id-token: write
+
+jobs:
+  review:
+{% endraw %}
+    uses: JSBaxter/harness/.github/workflows/claude-review.yml@{{ harness_ref }} # main
+    secrets: inherit
