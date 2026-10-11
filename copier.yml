@@ -79,7 +79,7 @@ harness_ref:
     The JSBaxter/harness commit the workflow stubs pin to, rendered as
     `@<sha> # main`. The default is the harness main head recorded in the
     template; Renovate bumps it. A 40-hex commit SHA.
-  default: de1496189053c2e857e83851512973ad2788daf0
+  default: 62804dc43a2dc1ed407d493a658c7328e528c1f6
   validator: >-
     {% if not (harness_ref | regex_search('^[0-9a-f]{40}$')) %}
     harness_ref must be a 40-character lowercase hex commit SHA of
