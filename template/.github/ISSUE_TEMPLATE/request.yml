@@ -1,0 +1,54 @@
+name: Cross-cell request
+description: Ask this cell for something another cell needs. The definition of done is filled in by scope, not by the requester.
+title: "Request: "
+labels: ["state:new"]
+body:
+  - type: input
+    id: requesting-cell-and-issue
+    attributes:
+      label: Requesting cell and issue
+      description: The cell making the request and the issue there that needs this (owner/repo#number). The requester also opens a mirror issue in its own cell, blocked, linking here.
+      placeholder: org/other-cell#123
+    validations:
+      required: true
+  - type: textarea
+    id: what-is-needed
+    attributes:
+      label: What is needed
+      description: An observable outcome, not a design. What will be true once this is done, as something the requester can see or call.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: An input and the expected output. One concrete case is enough; scope writes the definition of done from it rather than copying it.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: Link to the requester's spec, and the Behavior statement or pending delta this serves.
+      placeholder: https://github.com/org/other-cell/blob/main/specs/area.md
+  - type: dropdown
+    id: priority-hint
+    attributes:
+      label: Priority hint
+      description: Optional. 1 is lowest, 5 is most urgent; this cell weighs it by the edge to the requesting cell.
+      options:
+        - "1"
+        - "2"
+        - "3"
+        - "4"
+        - "5"
+    validations:
+      required: false
+  - type: textarea
+    id: definition-of-done
+    attributes:
+      label: Definition of done
+      description: Optional. Leave blank; scope writes it.
+      placeholder: "left blank; scope fills it"
+    validations:
+      required: false

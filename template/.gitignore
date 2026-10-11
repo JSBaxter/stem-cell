@@ -1,0 +1,13 @@
+.claude/worktrees/
+.claude/settings.local.json
+.env
+.env.local
+__pycache__/
+*.pyc
+node_modules/
+target/
+
+# Delivered by the harness review gate at run time (ADR 0005), never vendored.
+# Committing it would silently override what the gate delivers — use
+# .claude/agents/reviewer-override.md to replace the reviewer deliberately.
+.claude/agents/reviewer.md

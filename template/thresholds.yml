@@ -1,0 +1,41 @@
+# Thresholds every rule in this cell reads (see the cell-operation spec,
+# "Thresholds file"). Skills carry no numbers; they read this file through
+# `cellq threshold <dotted.key>`.
+#
+# Only the workflow retro changes this file, as a PR that James merges.
+# Each change cites the retro report that motivates it.
+
+route:
+  spec_if:
+    files_over: 5
+    sessions_over: 1
+
+task:
+  max_diff_lines: 400
+  max_files: 5
+  max_review_minutes: 10
+
+spec:
+  max_unfolded_deltas: 3
+
+claim:
+  stale_after_hours: 24
+
+review:
+  max_rounds: 3
+
+ceremonies:
+  grooming:
+    every_merges: 5
+  health:
+    every_merges: 10
+  retro:
+    every_merges: 15
+  structural:
+    every_merges: 20
+  audit:
+    every_merges: 40
+
+edges:
+  self: 1.0
+  default: 0.5
