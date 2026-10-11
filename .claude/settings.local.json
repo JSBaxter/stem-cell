@@ -1,5 +1,0 @@
-{
-  "env": {
-    "OTEL_RESOURCE_ATTRIBUTES": "experiment=stem-cell-v2"
-  }
-}

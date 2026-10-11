@@ -15,3 +15,6 @@ __pycache__/
 .idea/
 .vscode/
 .DS_Store
+
+# Per-machine Claude Code settings (telemetry tags etc.), never committed
+.claude/settings.local.json
