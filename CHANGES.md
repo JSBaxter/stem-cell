@@ -8,6 +8,14 @@ changed in the shape of the cell-owned files (`thresholds.yml`,
 newer than a cell's current version into its sync PR under `## Shape
 notes`. Write "none" when nothing changed shape.
 
+## v2.0.1
+
+The six workflow stubs drop an obsolete comment paragraph about repository identity (harness ADR 0011).
+
+### Owned files
+
+none
+
 ## v2.0.0
 
 ### Owned files
