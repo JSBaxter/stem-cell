@@ -5,10 +5,6 @@
 # stub only wires the PR triggers, the per-PR concurrency group, and forwards
 # secrets. See harness docs/adr/0001-ci-via-reusable-workflow.md.
 #
-# IMPORTANT — primary-identity repos ONLY. A stealth-identity repo must NOT
-# reference JSBaxter/* (it would link the accounts in plaintext); it keeps a
-# self-contained copy of the review workflow instead.
-#
 # Pin: a full commit SHA with the branch in a trailing comment (harness ADR
 # 0006). Renovate opens a bump PR here when the harness moves; do not edit the
 # SHA by hand.
